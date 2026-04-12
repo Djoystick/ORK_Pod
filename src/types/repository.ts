@@ -1,5 +1,7 @@
 import type {
   Category,
+  CommentAuthorReputation,
+  CommentFeedbackRecord,
   CommentRecord,
   CommentStatus,
   ContentStatus,
@@ -16,6 +18,8 @@ import type {
   Tag,
   UpdateCommentModerationInput,
   UpdateContentItemInput,
+  UpsertCommentFeedbackInput,
+  UpsertCommentFeedbackResult,
   UpsertReactionInput,
   UpsertReactionResult,
 } from "@/types/content";
@@ -53,6 +57,7 @@ export interface ContentRepository {
     contentItemId: string,
     options?: { statuses?: CommentStatus[] },
   ): Promise<CommentRecord[]>;
+  getCommentById(commentId: string): Promise<CommentRecord | null>;
   createComment(input: CreateCommentInput): Promise<CommentRecord>;
   setCommentModeration(input: UpdateCommentModerationInput): Promise<CommentRecord>;
   listModerationComments(filters?: {
@@ -60,6 +65,12 @@ export interface ContentRepository {
     q?: string;
     limit?: number;
   }): Promise<CommentRecord[]>;
+  listCommentFeedbackForCommentIds(commentIds: string[]): Promise<CommentFeedbackRecord[]>;
+  upsertCommentFeedback(input: UpsertCommentFeedbackInput): Promise<UpsertCommentFeedbackResult>;
+  getAuthorCommentReputation(input: {
+    authorUserId?: string | null;
+    authorFingerprint?: string | null;
+  }): Promise<CommentAuthorReputation>;
   listReactionsForContentItem(contentItemId: string): Promise<ReactionRecord[]>;
   upsertReaction(input: UpsertReactionInput): Promise<UpsertReactionResult>;
   listTaxonomy(): Promise<{

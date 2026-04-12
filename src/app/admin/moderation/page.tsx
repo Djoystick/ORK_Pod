@@ -21,6 +21,13 @@ function formatDateTime(value: string) {
   }).format(parsed);
 }
 
+function formatCoefficient(value?: number | null) {
+  if (!Number.isFinite(value ?? Number.NaN)) {
+    return "1.000";
+  }
+  return (value as number).toFixed(3);
+}
+
 function statusBadge(status: string) {
   if (status === "approved") return "border-emerald-400/40 bg-emerald-300/10 text-emerald-100";
   if (status === "hidden") return "border-zinc-400/40 bg-zinc-400/10 text-zinc-200";
@@ -104,6 +111,7 @@ export default async function AdminModerationPage({ searchParams }: AdminModerat
           <thead className="border-b border-white/10 text-xs uppercase tracking-[0.12em] text-zinc-500">
             <tr>
               <th className="px-4 py-3">Комментарий</th>
+              <th className="px-4 py-3">Trust</th>
               <th className="px-4 py-3">Статус</th>
               <th className="px-4 py-3">Контент</th>
               <th className="px-4 py-3">Создан</th>
@@ -117,10 +125,24 @@ export default async function AdminModerationPage({ searchParams }: AdminModerat
                   <p className="font-medium text-zinc-100">{comment.authorDisplay}</p>
                   <p className="mt-1 line-clamp-3 text-xs leading-5 text-zinc-300">{comment.body}</p>
                   {comment.moderationReason ? (
-                    <p className="mt-1 text-[11px] text-zinc-500">
-                      reason: {comment.moderationReason}
-                    </p>
+                    <p className="mt-1 text-[11px] text-zinc-500">Причина: {comment.moderationReason}</p>
                   ) : null}
+                </td>
+                <td className="px-4 py-3">
+                  <p className="text-xs text-zinc-200">
+                    coeff:{" "}
+                    <span className="font-mono text-zinc-100">
+                      {formatCoefficient(
+                        comment.authorReputationCoefficient ?? comment.authorReputation?.coefficient,
+                      )}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    +{comment.authorReputation?.totalPositive ?? 0} / -{comment.authorReputation?.totalNegative ?? 0}
+                  </p>
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    decision: {comment.trustDecision ?? "manual_or_legacy"}
+                  </p>
                 </td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full border px-2.5 py-1 text-xs ${statusBadge(comment.status)}`}>
@@ -154,7 +176,7 @@ export default async function AdminModerationPage({ searchParams }: AdminModerat
             ))}
             {comments.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-zinc-400">
                   Нет комментариев для выбранных фильтров.
                 </td>
               </tr>

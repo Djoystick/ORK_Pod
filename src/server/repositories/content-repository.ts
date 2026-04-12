@@ -169,6 +169,15 @@ class FallbackContentRepository implements ContentRepository {
     }
   }
 
+  async getCommentById(commentId: string) {
+    try {
+      return await this.primary.getCommentById(commentId);
+    } catch (error) {
+      console.warn("[repository:fallback] getCommentById fallback to local store", error);
+      return this.fallback.getCommentById(commentId);
+    }
+  }
+
   async setCommentModeration(input: Parameters<ContentRepository["setCommentModeration"]>[0]) {
     try {
       return await this.primary.setCommentModeration(input);
@@ -186,6 +195,38 @@ class FallbackContentRepository implements ContentRepository {
     } catch (error) {
       console.warn("[repository:fallback] listModerationComments fallback to local store", error);
       return this.fallback.listModerationComments(filters);
+    }
+  }
+
+  async listCommentFeedbackForCommentIds(commentIds: string[]) {
+    try {
+      return await this.primary.listCommentFeedbackForCommentIds(commentIds);
+    } catch (error) {
+      console.warn(
+        "[repository:fallback] listCommentFeedbackForCommentIds fallback to local store",
+        error,
+      );
+      return this.fallback.listCommentFeedbackForCommentIds(commentIds);
+    }
+  }
+
+  async upsertCommentFeedback(input: Parameters<ContentRepository["upsertCommentFeedback"]>[0]) {
+    try {
+      return await this.primary.upsertCommentFeedback(input);
+    } catch (error) {
+      console.warn("[repository:fallback] upsertCommentFeedback fallback to local store", error);
+      return this.fallback.upsertCommentFeedback(input);
+    }
+  }
+
+  async getAuthorCommentReputation(
+    input: Parameters<ContentRepository["getAuthorCommentReputation"]>[0],
+  ) {
+    try {
+      return await this.primary.getAuthorCommentReputation(input);
+    } catch (error) {
+      console.warn("[repository:fallback] getAuthorCommentReputation fallback to local store", error);
+      return this.fallback.getAuthorCommentReputation(input);
     }
   }
 

@@ -8,9 +8,10 @@ import { getContentRepository } from "@/server/repositories/content-repository";
 import { consumeWriteRateLimit } from "@/server/security/write-rate-limit";
 import {
   createCommentForPublicContent,
+  setCommentFeedbackForPublicContent,
   setReactionForPublicContent,
 } from "@/server/services/community-service";
-import type { ReactionType } from "@/types/content";
+import type { CommentFeedbackType, ReactionType } from "@/types/content";
 
 export type CommunityCommentActionState = {
   status: "idle" | "success" | "error";
@@ -18,6 +19,11 @@ export type CommunityCommentActionState = {
 };
 
 export type CommunityReactionActionState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
+
+export type CommunityCommentFeedbackActionState = {
   status: "idle" | "success" | "error";
   message: string;
 };
@@ -34,6 +40,13 @@ function parseReactionType(value: string): ReactionType {
     return value;
   }
   throw new Error("Неизвестный тип реакции.");
+}
+
+function parseCommentFeedbackType(value: string): CommentFeedbackType {
+  if (value === "up" || value === "down") {
+    return value;
+  }
+  throw new Error("Неизвестный тип оценки комментария.");
 }
 
 async function resolvePublishedItemIdBySlug(slug: string) {
@@ -58,13 +71,12 @@ export async function addCommentAction(
       throw new Error("Заполните текст комментария.");
     }
     if (honeypot) {
-      throw new Error("Комментарий отклонен фильтром безопасности.");
+      throw new Error("Комментарий отклонён фильтром безопасности.");
     }
 
     const contentItemId = await resolvePublishedItemIdBySlug(slug);
     const writeContext = await assertCommunityWriteAccess();
-    const preferredName =
-      displayName || writeContext.principal?.email?.split("@")[0] || undefined;
+    const preferredName = displayName || writeContext.principal?.email?.split("@")[0] || undefined;
     const identity = await resolveCommunityIdentityForWrite({
       writeContext,
       preferredDisplayName: preferredName,
@@ -79,7 +91,7 @@ export async function addCommentAction(
       throw new Error("Слишком много комментариев за короткое время. Попробуйте позже.");
     }
 
-    await createCommentForPublicContent({
+    const comment = await createCommentForPublicContent({
       contentItemId,
       body,
       identity,
@@ -91,7 +103,67 @@ export async function addCommentAction(
 
     return {
       status: "success",
-      message: "Комментарий отправлен и ожидает модерации.",
+      message:
+        comment.status === "approved"
+          ? `Комментарий опубликован автоматически (коэффициент доверия: ${comment.authorReputationCoefficient?.toFixed(3) ?? "1.000"}).`
+          : "Комментарий отправлен и ожидает модерации.",
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: getErrorMessage(error),
+    };
+  }
+}
+
+export async function setCommentFeedbackAction(
+  _prevState: CommunityCommentFeedbackActionState,
+  formData: FormData,
+): Promise<CommunityCommentFeedbackActionState> {
+  try {
+    const slug = String(formData.get("slug") ?? "").trim();
+    const commentId = String(formData.get("commentId") ?? "").trim();
+    const feedbackType = parseCommentFeedbackType(String(formData.get("feedbackType") ?? "").trim());
+    if (!slug || !commentId) {
+      throw new Error("Недостаточно данных для оценки комментария.");
+    }
+
+    const contentItemId = await resolvePublishedItemIdBySlug(slug);
+    const writeContext = await assertCommunityWriteAccess();
+    const identity = await resolveCommunityIdentityForWrite({
+      writeContext,
+    });
+    const limit = await consumeWriteRateLimit({
+      scope: "comment_feedback_write",
+      actorKey: `${identity.fingerprint}:${commentId}`,
+      windowMs: 5 * 60 * 1000,
+      maxHits: 80,
+    });
+    if (!limit.allowed) {
+      throw new Error("Слишком частые оценки комментариев. Подождите немного.");
+    }
+
+    const result = await setCommentFeedbackForPublicContent({
+      contentItemId,
+      commentId,
+      feedbackType,
+      identity,
+      actorUserId: writeContext.principal?.userId ?? null,
+    });
+
+    revalidatePath(`/streams/${slug}`);
+    revalidatePath("/admin/moderation");
+
+    const actionMessage =
+      result.action === "removed"
+        ? "Оценка комментария снята."
+        : result.action === "updated"
+          ? "Оценка комментария обновлена."
+          : "Оценка комментария добавлена.";
+
+    return {
+      status: "success",
+      message: actionMessage,
     };
   } catch (error) {
     return {

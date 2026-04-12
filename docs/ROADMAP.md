@@ -1,14 +1,14 @@
-# ORKPOD Archive Roadmap (после Phase 18)
+# ORKPOD Archive Roadmap (после Phase 19)
 
 ## Текущее состояние продукта
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
-2. Брендинг (green ork, icon, hero background) сохранён.
-3. Auth/admin/community/ingestion flow остаются рабочими без архитектурной перестройки.
-4. Фазы 11-14B по automation (API-backed ingestion, exact tags, runtime parity) сохранены.
-5. Phase 15 завершён: структурирование импортированных описаний + UTF-8 cleanup.
-6. Phase 16 завершён: SEO / performance / indexing foundation.
-7. Phase 17 завершён: embedded player над описанием + collapsible description на detail page.
-8. Phase 18 завершён: cover readiness усилен + добавлен безопасный admin bulk publish для publish-ready материалов.
+2. Брендинг ORKPOD (green ork, icon, hero background) сохранён.
+3. Auth/admin/community/ingestion flow остаются рабочими.
+4. YouTube ingestion работает в live-режиме, API-backed путь и exact tags активированы в предыдущих фазах.
+5. SEO / performance / indexing foundation уже внедрены.
+6. Detail UX обновлён: embedded player над описанием + collapsible description.
+7. Cover readiness и admin bulk publish workflow уже внедрены.
+8. Phase 19 завершён: добавлена базовая система репутации комментариев и trust-модерации.
 
 ## Статус фаз
 1. Phase 01 — выполнено.
@@ -33,24 +33,21 @@
 20. Phase 15 — выполнено.
 21. Phase 16 — выполнено.
 22. Phase 17 — выполнено.
-23. Phase 18 — выполнено (cover readiness + bulk publish-ready workflow).
+23. Phase 18 — выполнено.
+24. Phase 19 — выполнено (comment reputation + trust moderation rules).
 
-## Что сделано в Phase 18
-1. Усилен cover path на уровне resolve слоя:
-   - если `cover.kind=image` отсутствует, для YouTube-материалов безопасно достраивается thumbnail из ссылки/ID;
-   - при отсутствии thumbnail сохраняется безопасный gradient fallback.
-2. Введены явные publish-ready правила для bulk publish:
-   - обязательные базовые проверки (draft/status, title, slug, primary link, description/excerpt/body, cover);
-   - для imported добавлены automation safety проверки (confidence/review/publishDecision/metadataReliability).
-3. Добавлен admin bulk publish action:
-   - owner-triggered действие публикует только записи, прошедшие readiness rules;
-   - показывается счётчик eligible/blocked/failed.
-4. Добавлена visibility в `/admin/content`:
-   - фильтр `Publish ready` (all/ready/blocked);
-   - per-item ready/blocked badge + причины блокировки;
-   - operational summary для draft/ready/blocked.
+## Что сделано в Phase 19
+1. Добавлена модель `+ / -` feedback для комментариев с защитой от дубликатов голосования и toggle/update поведением.
+2. Введён коэффициент репутации автора комментариев по явной формуле: `(positive + 1) / (negative + 1)`.
+3. Интегрированы trust-правила модерации новых комментариев:
+   - коэффициент `> 1` -> автопубликация;
+   - коэффициент `< 1` -> отправка на модерацию;
+   - коэффициент `= 1` (новый/нейтральный профиль) -> безопасный pending.
+4. На публичной странице добавлены `+ / -` действия для комментариев и видимый баланс голосов.
+5. В `/admin/moderation` добавлена trust-видимость: коэффициент автора, статистика `+/-`, trust decision и причина модерации.
+6. Добавлена миграция Supabase для `comment_feedback` и trust-полей комментария.
 
 ## Следующие roadmap-блоки
-1. Comment reputation system.
-2. Broader cover/media polish (следующий уровень art-direction вне операционного scope).
-3. Большой UI pass, вдохновлённый Pixabay (позже отдельной фазой).
+1. Broader community polish (тонкая калибровка trust-модели, UX очереди модерации, анти-абьюз улучшения).
+2. Further media/cover polish при необходимости.
+3. Большой Pixabay-inspired UI pass отдельной фазой.

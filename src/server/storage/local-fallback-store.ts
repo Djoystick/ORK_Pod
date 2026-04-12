@@ -5,6 +5,7 @@ import "server-only";
 
 import { contentItems, sourceChannels } from "@/data";
 import type {
+  CommentFeedbackRecord,
   CommentRecord,
   ContentItem,
   ImportRun,
@@ -23,6 +24,7 @@ const localImportRunsPath = path.join(dataDirectory, "local-import-runs.json");
 const localIngestionLocksPath = path.join(dataDirectory, "local-ingestion-locks.json");
 const localCommentsPath = path.join(dataDirectory, "local-comments.json");
 const localReactionsPath = path.join(dataDirectory, "local-reactions.json");
+const localCommentFeedbackPath = path.join(dataDirectory, "local-comment-feedback.json");
 
 const emptyIngestionLockSnapshot: IngestionLockSnapshot = {
   globalSyncAllLock: null,
@@ -169,6 +171,17 @@ async function ensureLocalReactionsStore() {
   }
 }
 
+async function ensureLocalCommentFeedbackStore() {
+  await ensureDataDirectory();
+
+  try {
+    await readFile(localCommentFeedbackPath, "utf8");
+    return;
+  } catch {
+    await writeFile(localCommentFeedbackPath, "[]\n", "utf8");
+  }
+}
+
 export async function readLocalFallbackContentItems() {
   await ensureLocalContentStore();
   const parsed = (await readJsonArray(localContentStorePath)) as unknown as ContentItem[];
@@ -264,4 +277,15 @@ export async function readLocalFallbackReactions() {
 export async function writeLocalFallbackReactions(reactions: ReactionRecord[]) {
   await ensureDataDirectory();
   await writeFile(localReactionsPath, `${JSON.stringify(reactions, null, 2)}\n`, "utf8");
+}
+
+export async function readLocalFallbackCommentFeedback() {
+  await ensureLocalCommentFeedbackStore();
+  const parsed = (await readJsonArray(localCommentFeedbackPath)) as unknown as CommentFeedbackRecord[];
+  return parsed;
+}
+
+export async function writeLocalFallbackCommentFeedback(feedback: CommentFeedbackRecord[]) {
+  await ensureDataDirectory();
+  await writeFile(localCommentFeedbackPath, `${JSON.stringify(feedback, null, 2)}\n`, "utf8");
 }

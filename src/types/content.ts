@@ -22,6 +22,7 @@ export type ModerationStatus =
   | "blocked";
 export type CommentStatus = "pending" | "approved" | "rejected" | "hidden";
 export type ReactionType = "like" | "love" | "insight" | "fire";
+export type CommentFeedbackType = "up" | "down";
 export type CommunityIdentityMode = "guest_cookie_v1";
 export type ImportRunStatus =
   | "queued"
@@ -160,6 +161,10 @@ export interface CommentRecord {
   status: CommentStatus;
   moderationStatus: ModerationStatus;
   moderationReason?: string | null;
+  authorReputationCoefficient?: number | null;
+  trustDecision?: CommentTrustDecision | null;
+  feedbackSummary?: CommentFeedbackSummary;
+  authorReputation?: CommentAuthorReputation;
   createdAt: string;
   updatedAt: string;
 }
@@ -171,6 +176,37 @@ export interface ReactionRecord {
   actorUserId?: string | null;
   actorFingerprint?: string | null;
   createdAt: string;
+}
+
+export type CommentTrustDecision = "auto_publish" | "moderation_required" | "neutral_pending";
+
+export interface CommentFeedbackRecord {
+  id: string;
+  commentId: string;
+  contentItemId: string;
+  feedbackType: CommentFeedbackType;
+  actorUserId?: string | null;
+  actorFingerprint?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommentFeedbackSummary {
+  total: number;
+  up: number;
+  down: number;
+  score: number;
+  activeFeedbackType: CommentFeedbackType | null;
+}
+
+export interface CommentAuthorReputation {
+  coefficient: number;
+  totalPositive: number;
+  totalNegative: number;
+  totalVotes: number;
+  totalComments: number;
+  ratedComments: number;
+  signal: "low" | "medium" | "high";
 }
 
 export interface ReactionSummaryItem {
@@ -192,6 +228,11 @@ export interface CreateCommentInput {
   authorFingerprint: string;
   body: string;
   identityMode: CommunityIdentityMode;
+  initialStatus?: CommentStatus;
+  initialModerationStatus?: ModerationStatus;
+  initialModerationReason?: string | null;
+  authorReputationCoefficient?: number | null;
+  trustDecision?: CommentTrustDecision | null;
 }
 
 export interface UpdateCommentModerationInput {
@@ -210,6 +251,19 @@ export interface UpsertReactionInput {
 export interface UpsertReactionResult {
   action: "created" | "updated" | "removed" | "unchanged";
   reaction: ReactionRecord | null;
+}
+
+export interface UpsertCommentFeedbackInput {
+  commentId: string;
+  contentItemId: string;
+  feedbackType: CommentFeedbackType;
+  actorUserId?: string | null;
+  actorFingerprint: string;
+}
+
+export interface UpsertCommentFeedbackResult {
+  action: "created" | "updated" | "removed" | "unchanged";
+  feedback: CommentFeedbackRecord | null;
 }
 
 export interface ImportRunItemResult {

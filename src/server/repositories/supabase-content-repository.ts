@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import "server-only";
 
+import { buildCommentAuthorReputation } from "@/lib/comment-reputation";
 import { resolveContentItems, sortItemsByDate } from "@/lib/content";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import {
@@ -9,6 +10,9 @@ import {
   type NormalizedYouTubeVideo,
 } from "@/server/services/youtube-ingestion-service";
 import type {
+  CommentAuthorReputation,
+  CommentFeedbackRecord,
+  CommentFeedbackType,
   CommentRecord,
   CommentStatus,
   ContentItem,
@@ -28,6 +32,8 @@ import type {
   SourceChannel,
   UpdateCommentModerationInput,
   UpdateContentItemInput,
+  UpsertCommentFeedbackInput,
+  UpsertCommentFeedbackResult,
   UpsertReactionInput,
   UpsertReactionResult,
 } from "@/types/content";
@@ -101,6 +107,19 @@ type DbCommentRow = {
   status: CommentStatus;
   moderation_status: ModerationStatus;
   moderation_reason: string | null;
+  author_reputation_coefficient: number | null;
+  trust_decision: CommentRecord["trustDecision"];
+  created_at: string;
+  updated_at: string;
+};
+
+type DbCommentFeedbackRow = {
+  id: string;
+  comment_id: string;
+  content_item_id: string;
+  feedback_type: CommentFeedbackType;
+  actor_user_id: string | null;
+  actor_fingerprint: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1323,6 +1342,12 @@ function rowToContentItem(
   };
 }
 
+const commentSelectColumns =
+  "id, content_item_id, parent_id, identity_mode, author_user_id, author_display, author_fingerprint, body, status, moderation_status, moderation_reason, author_reputation_coefficient, trust_decision, created_at, updated_at";
+
+const commentFeedbackSelectColumns =
+  "id, comment_id, content_item_id, feedback_type, actor_user_id, actor_fingerprint, created_at, updated_at";
+
 function rowToComment(row: DbCommentRow): CommentRecord {
   return {
     id: row.id,
@@ -1337,6 +1362,21 @@ function rowToComment(row: DbCommentRow): CommentRecord {
     status: row.status,
     moderationStatus: row.moderation_status,
     moderationReason: row.moderation_reason,
+    authorReputationCoefficient: row.author_reputation_coefficient,
+    trustDecision: row.trust_decision ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function rowToCommentFeedback(row: DbCommentFeedbackRow): CommentFeedbackRecord {
+  return {
+    id: row.id,
+    commentId: row.comment_id,
+    contentItemId: row.content_item_id,
+    feedbackType: row.feedback_type,
+    actorUserId: row.actor_user_id,
+    actorFingerprint: row.actor_fingerprint,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1379,6 +1419,23 @@ function isResolvedSourceChannel(
   value: ResolvedSourceChannel | null,
 ): value is ResolvedSourceChannel {
   return value !== null;
+}
+
+function resolveCommentAuthorKey(input: {
+  authorUserId?: string | null;
+  authorFingerprint?: string | null;
+}) {
+  const authorUserId = input.authorUserId?.trim() ?? "";
+  if (authorUserId) {
+    return { mode: "user" as const, value: authorUserId };
+  }
+
+  const authorFingerprint = input.authorFingerprint?.trim() ?? "";
+  if (authorFingerprint) {
+    return { mode: "fingerprint" as const, value: authorFingerprint };
+  }
+
+  return null;
 }
 
 export class SupabaseContentRepository implements ContentRepository {
@@ -1730,9 +1787,7 @@ export class SupabaseContentRepository implements ContentRepository {
 
     let query = client
       .from("comments")
-      .select(
-        "id, content_item_id, parent_id, identity_mode, author_user_id, author_display, author_fingerprint, body, status, moderation_status, moderation_reason, created_at, updated_at",
-      )
+      .select(commentSelectColumns)
       .eq("content_item_id", contentItemId);
 
     if (options?.statuses && options.statuses.length > 0) {
@@ -1745,9 +1800,28 @@ export class SupabaseContentRepository implements ContentRepository {
     return ((result.data ?? []) as DbCommentRow[]).map(rowToComment);
   }
 
+  async getCommentById(commentId: string) {
+    const client = ensureClient();
+    const result = await client
+      .from("comments")
+      .select(commentSelectColumns)
+      .eq("id", commentId)
+      .maybeSingle();
+
+    if (result.error) throw result.error;
+    if (!result.data) {
+      return null;
+    }
+
+    return rowToComment(result.data as DbCommentRow);
+  }
+
   async createComment(input: CreateCommentInput) {
     const client = ensureClient();
     const now = new Date().toISOString();
+    const status = input.initialStatus ?? "pending";
+    const moderationStatus = input.initialModerationStatus ?? "pending_review";
+    const moderationReason = input.initialModerationReason ?? "Ожидает первичной модерации.";
 
     const result = await client
       .from("comments")
@@ -1759,15 +1833,15 @@ export class SupabaseContentRepository implements ContentRepository {
         author_display: input.authorDisplay.trim(),
         author_fingerprint: input.authorFingerprint.trim(),
         body: input.body.trim(),
-        status: "pending",
-        moderation_status: "pending_review",
-        moderation_reason: "Ожидает первичной модерации.",
+        status,
+        moderation_status: moderationStatus,
+        moderation_reason: moderationReason,
+        author_reputation_coefficient: input.authorReputationCoefficient ?? null,
+        trust_decision: input.trustDecision ?? null,
         created_at: now,
         updated_at: now,
       })
-      .select(
-        "id, content_item_id, parent_id, identity_mode, author_user_id, author_display, author_fingerprint, body, status, moderation_status, moderation_reason, created_at, updated_at",
-      )
+      .select(commentSelectColumns)
       .single();
 
     if (result.error) throw result.error;
@@ -1792,9 +1866,7 @@ export class SupabaseContentRepository implements ContentRepository {
         moderation_reason: input.moderationReason?.trim() || null,
       })
       .eq("id", input.commentId)
-      .select(
-        "id, content_item_id, parent_id, identity_mode, author_user_id, author_display, author_fingerprint, body, status, moderation_status, moderation_reason, created_at, updated_at",
-      )
+      .select(commentSelectColumns)
       .single();
 
     if (result.error) throw result.error;
@@ -1813,9 +1885,7 @@ export class SupabaseContentRepository implements ContentRepository {
 
     let query = client
       .from("comments")
-      .select(
-        "id, content_item_id, parent_id, identity_mode, author_user_id, author_display, author_fingerprint, body, status, moderation_status, moderation_reason, created_at, updated_at",
-      )
+      .select(commentSelectColumns)
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -1831,6 +1901,150 @@ export class SupabaseContentRepository implements ContentRepository {
     const result = await query;
     if (result.error) throw result.error;
     return ((result.data ?? []) as DbCommentRow[]).map(rowToComment);
+  }
+
+  async listCommentFeedbackForCommentIds(commentIds: string[]) {
+    if (commentIds.length === 0) {
+      return [];
+    }
+
+    const client = ensureClient();
+    const result = await client
+      .from("comment_feedback")
+      .select(commentFeedbackSelectColumns)
+      .in("comment_id", commentIds);
+
+    if (result.error) throw result.error;
+    return ((result.data ?? []) as DbCommentFeedbackRow[]).map(rowToCommentFeedback);
+  }
+
+  async upsertCommentFeedback(
+    input: UpsertCommentFeedbackInput,
+  ): Promise<UpsertCommentFeedbackResult> {
+    const client = ensureClient();
+    const actorFingerprint = input.actorFingerprint.trim();
+    if (!actorFingerprint) {
+      throw new Error("Temporary identity fingerprint is required for comment feedback.");
+    }
+
+    const now = new Date().toISOString();
+    const existingResult = await client
+      .from("comment_feedback")
+      .select(commentFeedbackSelectColumns)
+      .eq("comment_id", input.commentId)
+      .or(
+        input.actorUserId
+          ? `actor_user_id.eq.${input.actorUserId},actor_fingerprint.eq.${actorFingerprint}`
+          : `actor_fingerprint.eq.${actorFingerprint}`,
+      )
+      .limit(1);
+    if (existingResult.error) throw existingResult.error;
+
+    const existing = ((existingResult.data ?? []) as DbCommentFeedbackRow[])[0] ?? null;
+
+    if (existing && existing.feedback_type === input.feedbackType) {
+      const deleteResult = await client.from("comment_feedback").delete().eq("id", existing.id);
+      if (deleteResult.error) throw deleteResult.error;
+      return {
+        action: "removed",
+        feedback: null,
+      };
+    }
+
+    if (existing) {
+      const updateResult = await client
+        .from("comment_feedback")
+        .update({
+          feedback_type: input.feedbackType,
+          actor_user_id: input.actorUserId ?? null,
+          actor_fingerprint: actorFingerprint,
+          updated_at: now,
+        })
+        .eq("id", existing.id)
+        .select(commentFeedbackSelectColumns)
+        .single();
+      if (updateResult.error) throw updateResult.error;
+
+      return {
+        action: "updated",
+        feedback: rowToCommentFeedback(updateResult.data as DbCommentFeedbackRow),
+      };
+    }
+
+    const insertResult = await client
+      .from("comment_feedback")
+      .insert({
+        comment_id: input.commentId,
+        content_item_id: input.contentItemId,
+        feedback_type: input.feedbackType,
+        actor_user_id: input.actorUserId ?? null,
+        actor_fingerprint: actorFingerprint,
+        created_at: now,
+        updated_at: now,
+      })
+      .select(commentFeedbackSelectColumns)
+      .single();
+    if (insertResult.error) throw insertResult.error;
+
+    return {
+      action: "created",
+      feedback: rowToCommentFeedback(insertResult.data as DbCommentFeedbackRow),
+    };
+  }
+
+  async getAuthorCommentReputation(input: {
+    authorUserId?: string | null;
+    authorFingerprint?: string | null;
+  }): Promise<CommentAuthorReputation> {
+    const authorKey = resolveCommentAuthorKey(input);
+    if (!authorKey) {
+      return buildCommentAuthorReputation({
+        totalPositive: 0,
+        totalNegative: 0,
+        totalComments: 0,
+        ratedComments: 0,
+      });
+    }
+
+    const client = ensureClient();
+    let commentsQuery = client.from("comments").select("id");
+    commentsQuery =
+      authorKey.mode === "user"
+        ? commentsQuery.eq("author_user_id", authorKey.value)
+        : commentsQuery.eq("author_fingerprint", authorKey.value);
+
+    const commentsResult = await commentsQuery;
+    if (commentsResult.error) throw commentsResult.error;
+    const commentIds = (commentsResult.data ?? []).map((row) => row.id as string);
+    if (commentIds.length === 0) {
+      return buildCommentAuthorReputation({
+        totalPositive: 0,
+        totalNegative: 0,
+        totalComments: 0,
+        ratedComments: 0,
+      });
+    }
+
+    const feedbackResult = await client
+      .from("comment_feedback")
+      .select("comment_id, feedback_type")
+      .in("comment_id", commentIds);
+    if (feedbackResult.error) throw feedbackResult.error;
+
+    const feedbackRows = (feedbackResult.data ?? []) as Array<{
+      comment_id: string;
+      feedback_type: CommentFeedbackType;
+    }>;
+    const totalPositive = feedbackRows.filter((row) => row.feedback_type === "up").length;
+    const totalNegative = feedbackRows.filter((row) => row.feedback_type === "down").length;
+    const ratedComments = new Set(feedbackRows.map((row) => row.comment_id)).size;
+
+    return buildCommentAuthorReputation({
+      totalPositive,
+      totalNegative,
+      totalComments: commentIds.length,
+      ratedComments,
+    });
   }
 
   async listReactionsForContentItem(contentItemId: string) {

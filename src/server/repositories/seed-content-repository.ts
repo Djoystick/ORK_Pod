@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import "server-only";
 
 import { categories, platforms, seriesList, tags } from "@/data";
+import { buildCommentAuthorReputation } from "@/lib/comment-reputation";
 import { resolveContentItems, sortItemsByDate } from "@/lib/content";
 import {
   fetchYouTubeChannelVideos,
@@ -10,17 +11,21 @@ import {
 } from "@/server/services/youtube-ingestion-service";
 import {
   readLocalFallbackContentItems,
+  readLocalFallbackCommentFeedback,
   readLocalFallbackComments,
   readLocalFallbackImportRuns,
   readLocalFallbackReactions,
   readLocalFallbackSourceChannels,
   writeLocalFallbackContentItems,
+  writeLocalFallbackCommentFeedback,
   writeLocalFallbackComments,
   writeLocalFallbackImportRuns,
   writeLocalFallbackReactions,
   writeLocalFallbackSourceChannels,
 } from "@/server/storage/local-fallback-store";
 import type {
+  CommentAuthorReputation,
+  CommentFeedbackRecord,
   CommentRecord,
   CommentStatus,
   ContentItem,
@@ -37,6 +42,8 @@ import type {
   ResolvedSourceChannel,
   SourceChannel,
   UpdateContentItemInput,
+  UpsertCommentFeedbackInput,
+  UpsertCommentFeedbackResult,
   UpsertReactionInput,
   UpsertReactionResult,
 } from "@/types/content";
@@ -1166,6 +1173,78 @@ function mapModerationStatus(status: CommentStatus) {
   return "blocked" as const;
 }
 
+function resolveCommentAuthorKey(input: {
+  authorUserId?: string | null;
+  authorFingerprint?: string | null;
+}) {
+  const authorUserId = input.authorUserId?.trim() ?? "";
+  if (authorUserId) {
+    return { key: `user:${authorUserId}`, mode: "user" as const, value: authorUserId };
+  }
+
+  const authorFingerprint = input.authorFingerprint?.trim() ?? "";
+  if (authorFingerprint) {
+    return { key: `fingerprint:${authorFingerprint}`, mode: "fingerprint" as const, value: authorFingerprint };
+  }
+
+  return null;
+}
+
+function isSameCommentActor(comment: CommentRecord, authorKey: ReturnType<typeof resolveCommentAuthorKey>) {
+  if (!authorKey) {
+    return false;
+  }
+
+  if (authorKey.mode === "user") {
+    return (comment.authorUserId ?? "") === authorKey.value;
+  }
+
+  return (comment.authorFingerprint ?? "") === authorKey.value;
+}
+
+function buildAuthorReputationFromLocalRecords(params: {
+  comments: CommentRecord[];
+  feedback: CommentFeedbackRecord[];
+  authorUserId?: string | null;
+  authorFingerprint?: string | null;
+}): CommentAuthorReputation {
+  const authorKey = resolveCommentAuthorKey({
+    authorUserId: params.authorUserId,
+    authorFingerprint: params.authorFingerprint,
+  });
+  if (!authorKey) {
+    return buildCommentAuthorReputation({
+      totalPositive: 0,
+      totalNegative: 0,
+      totalComments: 0,
+      ratedComments: 0,
+    });
+  }
+
+  const authorComments = params.comments.filter((comment) => isSameCommentActor(comment, authorKey));
+  if (authorComments.length === 0) {
+    return buildCommentAuthorReputation({
+      totalPositive: 0,
+      totalNegative: 0,
+      totalComments: 0,
+      ratedComments: 0,
+    });
+  }
+
+  const commentIds = new Set(authorComments.map((comment) => comment.id));
+  const feedbackForAuthor = params.feedback.filter((entry) => commentIds.has(entry.commentId));
+  const totalPositive = feedbackForAuthor.filter((entry) => entry.feedbackType === "up").length;
+  const totalNegative = feedbackForAuthor.filter((entry) => entry.feedbackType === "down").length;
+  const ratedComments = new Set(feedbackForAuthor.map((entry) => entry.commentId)).size;
+
+  return buildCommentAuthorReputation({
+    totalPositive,
+    totalNegative,
+    totalComments: authorComments.length,
+    ratedComments,
+  });
+}
+
 export class SeedContentRepository implements ContentRepository {
   async listArchiveItems() {
     const items = await getResolvedItems();
@@ -1860,6 +1939,11 @@ export class SeedContentRepository implements ContentRepository {
       );
   }
 
+  async getCommentById(commentId: string) {
+    const comments = await readLocalFallbackComments();
+    return comments.find((comment) => comment.id === commentId) ?? null;
+  }
+
   async createComment(input: CreateCommentInput) {
     const items = await readLocalFallbackContentItems();
     const targetItem = items.find((item) => item.id === input.contentItemId);
@@ -1891,9 +1975,11 @@ export class SeedContentRepository implements ContentRepository {
       authorDisplay: parsed.authorDisplay,
       authorFingerprint: parsed.authorFingerprint,
       body: parsed.body,
-      status: "pending",
-      moderationStatus: "pending_review",
-      moderationReason: "Awaiting initial moderation review.",
+      status: input.initialStatus ?? "pending",
+      moderationStatus: input.initialModerationStatus ?? "pending_review",
+      moderationReason: input.initialModerationReason ?? "Awaiting initial moderation review.",
+      authorReputationCoefficient: input.authorReputationCoefficient ?? null,
+      trustDecision: input.trustDecision ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -1959,6 +2045,87 @@ export class SeedContentRepository implements ContentRepository {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       )
       .slice(0, limit);
+  }
+
+  async listCommentFeedbackForCommentIds(commentIds: string[]) {
+    if (commentIds.length === 0) {
+      return [];
+    }
+
+    const commentIdSet = new Set(commentIds);
+    const feedback = await readLocalFallbackCommentFeedback();
+    return feedback.filter((entry) => commentIdSet.has(entry.commentId));
+  }
+
+  async upsertCommentFeedback(input: UpsertCommentFeedbackInput): Promise<UpsertCommentFeedbackResult> {
+    const actorFingerprint = input.actorFingerprint.trim();
+    if (!actorFingerprint) {
+      throw new Error("Temporary identity fingerprint is required for comment feedback.");
+    }
+
+    const now = new Date().toISOString();
+    const feedback = await readLocalFallbackCommentFeedback();
+    const matchesActor = (entry: CommentFeedbackRecord) =>
+      entry.commentId === input.commentId &&
+      ((input.actorUserId && entry.actorUserId === input.actorUserId) ||
+        entry.actorFingerprint === actorFingerprint);
+    const existing = feedback.find((entry) => matchesActor(entry)) ?? null;
+
+    if (existing && existing.feedbackType === input.feedbackType) {
+      const next = feedback.filter((entry) => entry.id !== existing.id);
+      await writeLocalFallbackCommentFeedback(next);
+      return {
+        action: "removed",
+        feedback: null,
+      };
+    }
+
+    if (existing) {
+      const updated: CommentFeedbackRecord = {
+        ...existing,
+        feedbackType: input.feedbackType,
+        actorUserId: input.actorUserId ?? null,
+        actorFingerprint,
+        updatedAt: now,
+      };
+      const next = feedback.map((entry) => (entry.id === existing.id ? updated : entry));
+      await writeLocalFallbackCommentFeedback(next);
+      return {
+        action: "updated",
+        feedback: updated,
+      };
+    }
+
+    const created: CommentFeedbackRecord = {
+      id: `comment-feedback-${randomUUID()}`,
+      commentId: input.commentId,
+      contentItemId: input.contentItemId,
+      feedbackType: input.feedbackType,
+      actorUserId: input.actorUserId ?? null,
+      actorFingerprint,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await writeLocalFallbackCommentFeedback([...feedback, created]);
+    return {
+      action: "created",
+      feedback: created,
+    };
+  }
+
+  async getAuthorCommentReputation(input: {
+    authorUserId?: string | null;
+    authorFingerprint?: string | null;
+  }) {
+    const comments = await readLocalFallbackComments();
+    const feedback = await readLocalFallbackCommentFeedback();
+    return buildAuthorReputationFromLocalRecords({
+      comments,
+      feedback,
+      authorUserId: input.authorUserId,
+      authorFingerprint: input.authorFingerprint,
+    });
   }
 
   async listReactionsForContentItem(contentItemId: string) {

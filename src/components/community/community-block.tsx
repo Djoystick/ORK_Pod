@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 
 import {
   addCommentAction,
+  setCommentFeedbackAction,
   setReactionAction,
   type CommunityCommentActionState,
+  type CommunityCommentFeedbackActionState,
   type CommunityReactionActionState,
 } from "@/app/streams/[slug]/community-actions";
 import type { CommentRecord, CommunityReactionSummary, ReactionType } from "@/types/content";
@@ -18,6 +20,11 @@ const INITIAL_COMMUNITY_REACTION_ACTION_STATE: CommunityReactionActionState = {
 };
 
 const INITIAL_COMMUNITY_COMMENT_ACTION_STATE: CommunityCommentActionState = {
+  status: "idle",
+  message: "",
+};
+
+const INITIAL_COMMUNITY_COMMENT_FEEDBACK_ACTION_STATE: CommunityCommentFeedbackActionState = {
   status: "idle",
   message: "",
 };
@@ -71,6 +78,10 @@ export function CommunityBlock({
     addCommentAction,
     INITIAL_COMMUNITY_COMMENT_ACTION_STATE,
   );
+  const [commentFeedbackState, commentFeedbackAction, commentFeedbackPending] = useActionState(
+    setCommentFeedbackAction,
+    INITIAL_COMMUNITY_COMMENT_FEEDBACK_ACTION_STATE,
+  );
 
   useEffect(() => {
     if (reactionState.status === "success") {
@@ -83,6 +94,12 @@ export function CommunityBlock({
       router.refresh();
     }
   }, [commentState.status, router]);
+
+  useEffect(() => {
+    if (commentFeedbackState.status === "success") {
+      router.refresh();
+    }
+  }, [commentFeedbackState.status, router]);
 
   const commentsCountLabel = useMemo(() => {
     if (comments.length === 0) return "Пока нет одобренных комментариев.";
@@ -159,6 +176,39 @@ export function CommunityBlock({
                   <p className="text-xs text-zinc-500">{formatDateTime(comment.createdAt)}</p>
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{comment.body}</p>
+                <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/10 pt-3">
+                  <form action={commentFeedbackAction} className="flex items-center gap-2">
+                    <input type="hidden" name="slug" value={slug} />
+                    <input type="hidden" name="commentId" value={comment.id} />
+                    <button
+                      type="submit"
+                      name="feedbackType"
+                      value="up"
+                      disabled={commentFeedbackPending || !communityWrite.canWrite}
+                      className={`rounded-full border px-2.5 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        comment.feedbackSummary?.activeFeedbackType === "up"
+                          ? "border-emerald-300/55 bg-emerald-300/20 text-emerald-100"
+                          : "border-white/15 bg-white/5 text-zinc-300 hover:border-emerald-300/45"
+                      }`}
+                    >
+                      + {comment.feedbackSummary?.up ?? 0}
+                    </button>
+                    <button
+                      type="submit"
+                      name="feedbackType"
+                      value="down"
+                      disabled={commentFeedbackPending || !communityWrite.canWrite}
+                      className={`rounded-full border px-2.5 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        comment.feedbackSummary?.activeFeedbackType === "down"
+                          ? "border-rose-300/55 bg-rose-300/20 text-rose-100"
+                          : "border-white/15 bg-white/5 text-zinc-300 hover:border-rose-300/45"
+                      }`}
+                    >
+                      - {comment.feedbackSummary?.down ?? 0}
+                    </button>
+                  </form>
+                  <p className="text-xs text-zinc-400">Баланс: {comment.feedbackSummary?.score ?? 0}</p>
+                </div>
               </li>
             ))}
           </ul>
@@ -230,6 +280,15 @@ export function CommunityBlock({
           {commentState.status !== "idle" ? (
             <p className={`text-xs ${commentState.status === "error" ? "text-rose-300" : "text-emerald-300"}`}>
               {commentState.message}
+            </p>
+          ) : null}
+          {commentFeedbackState.status !== "idle" ? (
+            <p
+              className={`text-xs ${
+                commentFeedbackState.status === "error" ? "text-rose-300" : "text-emerald-300"
+              }`}
+            >
+              {commentFeedbackState.message}
             </p>
           ) : null}
         </form>

@@ -1,11 +1,16 @@
 import "server-only";
 
+import { resolveCommentTrustModerationDecision } from "@/lib/comment-reputation";
 import { assertAdminWriteAccess, resolveAdminGateContext } from "@/server/auth/admin-gate";
 import { buildSupabaseActorFingerprint } from "@/server/auth/community-identity";
 import { resolveCommunityWriteContext } from "@/server/auth/community-gate";
 import type { CommunityIdentityContext } from "@/server/auth/community-identity";
 import { getContentRepository } from "@/server/repositories/content-repository";
 import type {
+  CommentAuthorReputation,
+  CommentFeedbackRecord,
+  CommentFeedbackSummary,
+  CommentFeedbackType,
   CommentStatus,
   CommunityReactionSummary,
   ReactionRecord,
@@ -16,7 +21,10 @@ const reactionTypes: ReactionType[] = ["like", "love", "insight", "fire"];
 
 function buildReactionSummary(
   reactions: ReactionRecord[],
-  viewerFingerprint?: string | null,
+  viewer: {
+    fingerprint?: string | null;
+    userId?: string | null;
+  },
 ): CommunityReactionSummary {
   const counts = new Map<ReactionType, number>();
   for (const type of reactionTypes) {
@@ -30,7 +38,8 @@ function buildReactionSummary(
   const activeReaction =
     reactions.find(
       (reaction) =>
-        Boolean(viewerFingerprint) && reaction.actorFingerprint === viewerFingerprint,
+        (Boolean(viewer.userId) && reaction.actorUserId === viewer.userId) ||
+        (Boolean(viewer.fingerprint) && reaction.actorFingerprint === viewer.fingerprint),
     )?.reactionType ?? null;
 
   return {
@@ -44,6 +53,48 @@ function buildReactionSummary(
   };
 }
 
+function buildCommentFeedbackSummary(params: {
+  feedback: CommentFeedbackRecord[];
+  viewer: {
+    fingerprint?: string | null;
+    userId?: string | null;
+  };
+}): CommentFeedbackSummary {
+  const up = params.feedback.filter((entry) => entry.feedbackType === "up").length;
+  const down = params.feedback.filter((entry) => entry.feedbackType === "down").length;
+  const activeFeedbackType =
+    params.feedback.find(
+      (entry) =>
+        (Boolean(params.viewer.userId) && entry.actorUserId === params.viewer.userId) ||
+        (Boolean(params.viewer.fingerprint) && entry.actorFingerprint === params.viewer.fingerprint),
+    )?.feedbackType ?? null;
+
+  return {
+    total: params.feedback.length,
+    up,
+    down,
+    score: up - down,
+    activeFeedbackType,
+  };
+}
+
+function buildAuthorReputationKey(input: {
+  authorUserId?: string | null;
+  authorFingerprint?: string | null;
+}) {
+  const authorUserId = input.authorUserId?.trim() ?? "";
+  if (authorUserId) {
+    return `user:${authorUserId}`;
+  }
+
+  const authorFingerprint = input.authorFingerprint?.trim() ?? "";
+  if (authorFingerprint) {
+    return `fingerprint:${authorFingerprint}`;
+  }
+
+  return null;
+}
+
 export async function getPublicCommunityData(
   contentItemId: string,
   viewerFingerprint?: string | null,
@@ -54,23 +105,45 @@ export async function getPublicCommunityData(
     repository.listReactionsForContentItem(contentItemId),
     resolveCommunityWriteContext(),
   ]);
-  const effectiveViewerFingerprint =
+  const viewer =
     writeContext.mode === "supabase_auth_required" && writeContext.principal
-      ? buildSupabaseActorFingerprint(writeContext.principal.userId)
-      : viewerFingerprint;
+      ? {
+          fingerprint: buildSupabaseActorFingerprint(writeContext.principal.userId),
+          userId: writeContext.principal.userId,
+        }
+      : {
+          fingerprint: viewerFingerprint,
+          userId: null,
+        };
+
+  const commentFeedback = await repository.listCommentFeedbackForCommentIds(
+    comments.map((comment) => comment.id),
+  );
+  const feedbackByCommentId = new Map<string, CommentFeedbackRecord[]>();
+  for (const entry of commentFeedback) {
+    const list = feedbackByCommentId.get(entry.commentId) ?? [];
+    list.push(entry);
+    feedbackByCommentId.set(entry.commentId, list);
+  }
 
   return {
-    comments,
-    reactionSummary: buildReactionSummary(reactions, effectiveViewerFingerprint),
+    comments: comments.map((comment) => ({
+      ...comment,
+      feedbackSummary: buildCommentFeedbackSummary({
+        feedback: feedbackByCommentId.get(comment.id) ?? [],
+        viewer,
+      }),
+    })),
+    reactionSummary: buildReactionSummary(reactions, viewer),
     policy: {
       identityMode: "guest_cookie_v1" as const,
-      commentModeration: "pending_by_default" as const,
+      commentModeration: "trust_score_v1" as const,
       canWrite: writeContext.canWrite,
       writeMode: writeContext.mode,
       requiresAuth: writeContext.requiresAuth,
       message: writeContext.canWrite
-        ? `${writeContext.message} Комментарии публикуются после модерации.`
-        : `${writeContext.message} Read-only режим включен для community блока.`,
+        ? `${writeContext.message} Новые комментарии проходят trust-проверку: коэффициент автора > 1 публикуется сразу, иначе комментарий уходит на модерацию.`
+        : `${writeContext.message} Для community-блока включён read-only режим.`,
     },
   };
 }
@@ -82,13 +155,64 @@ export async function createCommentForPublicContent(params: {
   authorUserId?: string | null;
 }) {
   const repository = getContentRepository();
-  return repository.createComment({
+  const reputation = await repository.getAuthorCommentReputation({
+    authorUserId: params.authorUserId ?? null,
+    authorFingerprint: params.identity.fingerprint,
+  });
+  const moderationDecision = resolveCommentTrustModerationDecision({
+    coefficient: reputation.coefficient,
+  });
+  const created = await repository.createComment({
     contentItemId: params.contentItemId,
     authorUserId: params.authorUserId ?? null,
     authorDisplay: params.identity.displayName,
     authorFingerprint: params.identity.fingerprint,
     body: params.body,
     identityMode: params.identity.mode,
+    initialStatus: moderationDecision.status,
+    initialModerationStatus: moderationDecision.moderationStatus,
+    initialModerationReason: moderationDecision.moderationReason,
+    authorReputationCoefficient: reputation.coefficient,
+    trustDecision: moderationDecision.trustDecision,
+  });
+
+  return {
+    ...created,
+    authorReputation: reputation,
+  };
+}
+
+export async function setCommentFeedbackForPublicContent(params: {
+  contentItemId: string;
+  commentId: string;
+  feedbackType: CommentFeedbackType;
+  identity: CommunityIdentityContext;
+  actorUserId?: string | null;
+}) {
+  const repository = getContentRepository();
+  const comment = await repository.getCommentById(params.commentId);
+  if (!comment || comment.contentItemId !== params.contentItemId) {
+    throw new Error("Комментарий не найден в контексте этого материала.");
+  }
+  if (comment.status !== "approved") {
+    throw new Error("Голосовать можно только за опубликованные комментарии.");
+  }
+
+  const isOwnComment =
+    (Boolean(params.actorUserId) &&
+      Boolean(comment.authorUserId) &&
+      params.actorUserId === comment.authorUserId) ||
+    params.identity.fingerprint === comment.authorFingerprint;
+  if (isOwnComment) {
+    throw new Error("Нельзя голосовать за собственный комментарий.");
+  }
+
+  return repository.upsertCommentFeedback({
+    commentId: params.commentId,
+    contentItemId: params.contentItemId,
+    feedbackType: params.feedbackType,
+    actorUserId: params.actorUserId ?? null,
+    actorFingerprint: params.identity.fingerprint,
   });
 }
 
@@ -163,13 +287,48 @@ export async function getAdminModerationData(
     ]),
   );
 
+  const authorIdentityByKey = new Map<
+    string,
+    {
+      authorUserId?: string | null;
+      authorFingerprint?: string | null;
+    }
+  >();
+  for (const comment of comments) {
+    const key = buildAuthorReputationKey({
+      authorUserId: comment.authorUserId,
+      authorFingerprint: comment.authorFingerprint,
+    });
+    if (!key || authorIdentityByKey.has(key)) {
+      continue;
+    }
+
+    authorIdentityByKey.set(key, {
+      authorUserId: comment.authorUserId,
+      authorFingerprint: comment.authorFingerprint,
+    });
+  }
+
+  const reputationByKey = new Map<string, CommentAuthorReputation>();
+  await Promise.all(
+    Array.from(authorIdentityByKey.entries()).map(async ([key, identity]) => {
+      const reputation = await repository.getAuthorCommentReputation(identity);
+      reputationByKey.set(key, reputation);
+    }),
+  );
+
   const linkedComments = comments.map((comment) => {
     const item = itemMap.get(comment.contentItemId);
+    const authorKey = buildAuthorReputationKey({
+      authorUserId: comment.authorUserId,
+      authorFingerprint: comment.authorFingerprint,
+    });
     return {
       ...comment,
       contentTitle: item?.title ?? "Unknown content",
       contentSlug: item?.slug ?? null,
       contentStatus: item?.status ?? "draft",
+      authorReputation: authorKey ? reputationByKey.get(authorKey) ?? null : null,
     };
   });
 
