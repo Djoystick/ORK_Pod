@@ -27,6 +27,7 @@ export default async function AdminSourcesPage() {
         channels={data.channels}
         recentRuns={data.recentRuns}
         lockSnapshot={data.lockSnapshot}
+        ingestionRuntimeWarning={data.ingestionRuntimeWarning}
       />
     </section>
   );

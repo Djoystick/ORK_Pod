@@ -29,6 +29,7 @@ type SourceRegistryFormProps = {
   channels: ResolvedSourceChannel[];
   recentRuns: ImportRun[];
   lockSnapshot: IngestionLockSnapshot;
+  ingestionRuntimeWarning?: string | null;
 };
 
 function formatDateTime(value?: string | null) {
@@ -112,6 +113,7 @@ export function SourceRegistryForm({
   channels,
   recentRuns,
   lockSnapshot,
+  ingestionRuntimeWarning,
 }: SourceRegistryFormProps) {
   const [createState, createFormAction, isCreatePending] = useActionState(
     createSourceChannelAction,
@@ -128,6 +130,11 @@ export function SourceRegistryForm({
   return (
     <section className="space-y-4">
       <AdminGateNotice gate={gate} />
+      {ingestionRuntimeWarning ? (
+        <div className="rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+          {ingestionRuntimeWarning}
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">

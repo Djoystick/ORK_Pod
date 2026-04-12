@@ -9,6 +9,10 @@ import {
   runAllActiveSourcesJob,
   runSourceSyncJob,
 } from "@/server/services/ingestion-job-service";
+import {
+  getIngestionRuntimeUnavailableMessage,
+  isIngestionRuntimeUnavailableError,
+} from "@/server/services/ingestion-runtime-guard";
 import type {
   CreateSourceChannelInput,
   ImportRun,
@@ -145,12 +149,22 @@ function markChannelsInProgress(
 export async function getAdminSourceRegistryData(host: string) {
   const repository = getContentRepository();
   const gate = await resolveAdminGateContext(host);
-  const [channels, taxonomy, recentRuns, lockSnapshot] = await Promise.all([
+  const [channels, taxonomy, lockSnapshot] = await Promise.all([
     repository.listSourceChannels(),
     repository.listTaxonomy(),
-    repository.listImportRuns(20),
     getIngestionLockSnapshot(),
   ]);
+  let recentRuns: ImportRun[] = [];
+  let ingestionRuntimeWarning: string | null = null;
+
+  try {
+    recentRuns = await repository.listImportRuns(20);
+  } catch (error) {
+    if (!isIngestionRuntimeUnavailableError(error)) {
+      throw error;
+    }
+    ingestionRuntimeWarning = getIngestionRuntimeUnavailableMessage();
+  }
 
   return {
     gate,
@@ -158,6 +172,7 @@ export async function getAdminSourceRegistryData(host: string) {
     platforms: taxonomy.platforms,
     recentRuns,
     lockSnapshot,
+    ingestionRuntimeWarning,
   };
 }
 
@@ -234,6 +249,7 @@ export async function getAdminImportsData(
       filters: normalizedFilters,
       runs: [],
       sources: [],
+      ingestionRuntimeWarning: null as string | null,
       summary: {
         total: 0,
         success: 0,
@@ -244,16 +260,25 @@ export async function getAdminImportsData(
     };
   }
 
-  const [runs, channels] = await Promise.all([
-    repository.listImportRuns(120),
-    repository.listSourceChannels(),
-  ]);
+  const channels = await repository.listSourceChannels();
+  let runs: ImportRun[] = [];
+  let ingestionRuntimeWarning: string | null = null;
+
+  try {
+    runs = await repository.listImportRuns(120);
+  } catch (error) {
+    if (!isIngestionRuntimeUnavailableError(error)) {
+      throw error;
+    }
+    ingestionRuntimeWarning = getIngestionRuntimeUnavailableMessage();
+  }
 
   const filteredRuns = applyImportFilters(runs, normalizedFilters);
   return {
     gate,
     filters: normalizedFilters,
     runs: filteredRuns,
+    ingestionRuntimeWarning,
     sources: channels.map((channel) => ({
       slug: channel.slug,
       title: channel.title,
@@ -277,28 +302,55 @@ export async function getAdminImportRunDetailsData(host: string, runId: string) 
       gate,
       run: null,
       relatedRuns: [],
+      ingestionRuntimeWarning: null as string | null,
+      ingestionRuntimeUnavailable: false,
     };
   }
 
-  const run = await repository.getImportRunById(runId);
+  let run: ImportRun | null = null;
+  let ingestionRuntimeWarning: string | null = null;
+  let ingestionRuntimeUnavailable = false;
+  try {
+    run = await repository.getImportRunById(runId);
+  } catch (error) {
+    if (!isIngestionRuntimeUnavailableError(error)) {
+      throw error;
+    }
+    ingestionRuntimeWarning = getIngestionRuntimeUnavailableMessage();
+    ingestionRuntimeUnavailable = true;
+  }
+
   if (!run) {
     return {
       gate,
       run: null,
       relatedRuns: [],
+      ingestionRuntimeWarning,
+      ingestionRuntimeUnavailable,
     };
   }
 
-  const relatedRuns = (await repository.listImportRuns(80))
-    .filter(
-      (candidate) =>
-        candidate.sourceChannelId === run.sourceChannelId && candidate.id !== run.id,
-    )
-    .slice(0, 10);
+  let relatedRuns: ImportRun[] = [];
+  try {
+    relatedRuns = (await repository.listImportRuns(80))
+      .filter(
+        (candidate) =>
+          candidate.sourceChannelId === run.sourceChannelId && candidate.id !== run.id,
+      )
+      .slice(0, 10);
+  } catch (error) {
+    if (!isIngestionRuntimeUnavailableError(error)) {
+      throw error;
+    }
+    ingestionRuntimeWarning = getIngestionRuntimeUnavailableMessage();
+    ingestionRuntimeUnavailable = true;
+  }
 
   return {
     gate,
     run,
     relatedRuns,
+    ingestionRuntimeWarning,
+    ingestionRuntimeUnavailable,
   };
 }

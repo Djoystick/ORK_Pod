@@ -3,7 +3,12 @@ import "server-only";
 import { sanitizeSlug } from "@/lib/slug";
 import { resolveAdminGateContext, assertAdminWriteAccess } from "@/server/auth/admin-gate";
 import { getContentRepository } from "@/server/repositories/content-repository";
+import {
+  getIngestionRuntimeUnavailableMessage,
+  isIngestionRuntimeUnavailableError,
+} from "@/server/services/ingestion-runtime-guard";
 import type {
+  ImportRun,
   ContentStatus,
   CreateManualContentInput,
   ResolvedContentItem,
@@ -148,16 +153,27 @@ export async function getAdminOverviewData(host: string) {
     return {
       gate,
       stats: null,
+      ingestionRuntimeWarning: null as string | null,
     };
   }
 
   const repository = getContentRepository();
-  const [items, channels, importRuns, moderationComments] = await Promise.all([
+  const [items, channels, moderationComments] = await Promise.all([
     repository.listAdminContentItems(),
     repository.listSourceChannels(),
-    repository.listImportRuns(20),
     repository.listModerationComments({ status: "all", limit: 500 }),
   ]);
+  let importRuns: ImportRun[] = [];
+  let ingestionRuntimeWarning: string | null = null;
+
+  try {
+    importRuns = await repository.listImportRuns(20);
+  } catch (error) {
+    if (!isIngestionRuntimeUnavailableError(error)) {
+      throw error;
+    }
+    ingestionRuntimeWarning = getIngestionRuntimeUnavailableMessage();
+  }
 
   const statusCounts = items.reduce(
     (acc, item) => {
@@ -170,6 +186,7 @@ export async function getAdminOverviewData(host: string) {
 
   return {
     gate,
+    ingestionRuntimeWarning,
     stats: {
       totalContent: items.length,
       statusCounts,

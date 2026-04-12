@@ -63,7 +63,8 @@ export default async function AdminImportRunDetailsPage({
   const { id } = await params;
   const filters = await searchParams;
   const host = (await headers()).get("host") ?? "";
-  const { gate, run, relatedRuns } = await getAdminImportRunDetailsData(host, id);
+  const { gate, run, relatedRuns, ingestionRuntimeWarning, ingestionRuntimeUnavailable } =
+    await getAdminImportRunDetailsData(host, id);
 
   if (!gate.canAccessAdmin) {
     return (
@@ -78,6 +79,34 @@ export default async function AdminImportRunDetailsPage({
   }
 
   if (!run) {
+    if (ingestionRuntimeUnavailable) {
+      return (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">
+                Import Run Details
+              </p>
+              <h2 className="font-display text-3xl text-zinc-100">
+                Раздел импортов временно недоступен
+              </h2>
+            </div>
+            <Link
+              href="/admin/imports"
+              className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-white/40"
+            >
+              Назад к списку
+            </Link>
+          </div>
+
+          <AdminGateNotice gate={gate} />
+          <div className="rounded-xl border border-amber-300/40 bg-amber-300/10 p-3 text-sm text-amber-100">
+            {ingestionRuntimeWarning ??
+              "Ingestion runtime временно недоступен в текущем production-контуре."}
+          </div>
+        </section>
+      );
+    }
     notFound();
   }
 
@@ -99,6 +128,11 @@ export default async function AdminImportRunDetailsPage({
       </div>
 
       <AdminGateNotice gate={gate} />
+      {ingestionRuntimeWarning ? (
+        <div className="rounded-xl border border-amber-300/40 bg-amber-300/10 p-3 text-sm text-amber-100">
+          {ingestionRuntimeWarning}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-5">
         <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">

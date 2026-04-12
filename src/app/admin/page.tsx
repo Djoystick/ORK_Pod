@@ -19,11 +19,16 @@ function formatDateTime(value?: string | null) {
 
 export default async function AdminPage() {
   const host = (await headers()).get("host") ?? "";
-  const { gate, stats } = await getAdminOverviewData(host);
+  const { gate, stats, ingestionRuntimeWarning } = await getAdminOverviewData(host);
 
   return (
     <section className="space-y-4">
       <AdminGateNotice gate={gate} />
+      {ingestionRuntimeWarning ? (
+        <div className="rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+          {ingestionRuntimeWarning}
+        </div>
+      ) : null}
       <BootstrapPublishedForm
         gate={gate}
         publishedCount={stats?.statusCounts.published ?? 0}
@@ -140,4 +145,3 @@ export default async function AdminPage() {
     </section>
   );
 }
-

@@ -1,4 +1,4 @@
-# ORKPOD Archive Roadmap (после Phase 09A)
+﻿# ORKPOD Archive Roadmap (после Phase 09A)
 
 ## Текущее состояние
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
@@ -33,4 +33,24 @@
    - открыть `/auth/sign-in`,
    - выполнить вход,
    - убедиться, что POST больше не возвращает 500 по export invariant.
+
+## Что завершено в Phase 09B
+1. Устранен production-crash /admin, вызванный ожидаемым исключением ingestion runtime в Supabase-репозитории.
+2. Для ingestion-блоков админки добавлена graceful degradation вместо фатального 500:
+   - /admin
+   - /admin/sources
+   - /admin/imports
+   - /admin/imports/[id]
+3. Fail-fast модель сохранена для нецелевых ошибок: перехватывается только известный runtime-limit ingestion-path.
+
+## Статус после Phase 09B
+1. Public-маршруты и admin-shell остаются рабочими.
+2. Ограничения ingestion runtime теперь отображаются как warning-состояние, а не авария страницы.
+3. Для подтверждения в production требуется post-deploy smoke на Vercel (проверка /admin и связанных импорт-разделов).
+
+## Следующий рекомендуемый шаг
+1. Выполнить post-deploy smoke:
+   - открыть /admin, /admin/sources, /admin/imports, /admin/imports/{id};
+   - убедиться, что при неактивном ingestion runtime отображается warning/ограниченный режим без 500;
+   - убедиться, что остальные admin-блоки продолжают работать штатно.
 

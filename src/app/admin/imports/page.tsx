@@ -51,7 +51,8 @@ function statusBadge(status: ImportRun["status"]) {
 export default async function AdminImportsPage({ searchParams }: AdminImportsPageProps) {
   const params = await searchParams;
   const host = (await headers()).get("host") ?? "";
-  const { gate, runs, sources, filters, summary } = await getAdminImportsData(host, params);
+  const { gate, runs, sources, filters, summary, ingestionRuntimeWarning } =
+    await getAdminImportsData(host, params);
 
   return (
     <section className="space-y-4">
@@ -61,6 +62,11 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
       </div>
 
       <AdminGateNotice gate={gate} />
+      {ingestionRuntimeWarning ? (
+        <div className="rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+          {ingestionRuntimeWarning}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-5">
         <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
