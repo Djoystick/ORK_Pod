@@ -1,11 +1,12 @@
-# ORKPOD Archive Roadmap (после Phase 14A)
+# ORKPOD Archive Roadmap (после Phase 14B)
 
 ## Текущее состояние продукта
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
 2. Брендинг (green ork, icon, hero background) сохранён.
-3. Auth/admin/community flow сохранены без архитектурных изменений.
-4. YouTube ingestion + automation phases 11-14 сохранены.
-5. Phase 14A закрыл live-блокер `/admin/sources` класса `EROFS` для ingestion lock storage.
+3. Auth/admin/community flow остаются рабочими без изменений архитектуры.
+4. Фазы 11-14 по automation (enrichment, auto-mapping, publish/review rules, API-backed path) сохранены.
+5. Phase 14A закрыл production-блокер EROFS для ingestion locks.
+6. Phase 14B включил runtime parity: Supabase ingestion path больше не заглушка и выполняет реальные sync/import runs через production-ветку репозитория.
 
 ## Статус фаз
 1. Phase 01 — выполнено.
@@ -25,26 +26,30 @@
 15. Phase 12 — выполнено.
 16. Phase 13 — выполнено.
 17. Phase 14 — выполнено.
-18. Phase 14A — выполнено (production-safe ingestion lock storage fix для Vercel).
+18. Phase 14A — выполнено.
+19. Phase 14B — выполнено (live ingestion runtime parity + API-primary activation path).
 
-## Что сделано в Phase 14A
-1. Найдена и устранена root cause:
-   - lock snapshot для ingestion читался/писался только в `data/local-ingestion-locks.json`;
-   - на Vercel production это приводило к `EROFS` при рендере `/admin/sources`.
-2. Введено явное разделение lock-store стратегии:
-   - production (`NODE_ENV=production`) => `memory_ephemeral` (без filesystem writes);
-   - local/dev => `file_local_json` (как и раньше);
-   - optional local override: `ORKPOD_INGESTION_LOCK_STORE=memory|file`.
-3. Locking не удалён и не ослаблен:
-   - anti-concurrency guard сохранён;
-   - sync-all guard сохранён;
-   - rerun safety и dedupe-поведение сохранены.
+## Что сделано в Phase 14B
+1. Найден и устранён root cause fallback-warning на `/admin/sources`: в `SupabaseContentRepository` ingestion-методы были заглушками и всегда бросали “runtime not active”.
+2. Реализован рабочий Supabase ingestion runtime path:
+   - `runSourceSync`
+   - `runAllActiveSourceSync`
+   - `getImportRunById`
+   - `listImportRuns`
+3. Включено сохранение telemetry в `import_runs` и `import_run_items` без fallback-by-default.
+4. Сохранены safety-гарантии:
+   - dedupe по `external_source_id`
+   - anti-concurrency/sync-all guards (через существующий lock/job слой)
+   - rerun/retry_failed_items логика
+   - safe draft/review defaults
+   - защита manual edits через ingestion snapshot/override checks
 
-## Что остаётся до SEO/performance/indexing
-1. Подтвердить post-deploy на live, что `/admin/sources` больше не падает по `EROFS`.
-2. Продолжить эксплуатационную калибровку API-backed ingestion после подключения production key.
-3. После стабилизации масштабного ingestion-контура перейти к SEO/performance/indexing.
+## Что остаётся перед SEO/performance/indexing
+1. Подтвердить post-deploy на live, что `/admin/sources` больше не показывает runtime fallback warning в штатной production-конфигурации.
+2. Подтвердить на live end-to-end source sync с реальным `YOUTUBE_DATA_API_KEY` и проверить telemetry (`/admin/imports`, `/admin/content`).
+3. После стабилизации ingestion-контура переходить к SEO/performance/indexing.
 
 ## Следующие roadmap-блоки
 1. SEO / performance / indexing.
-2. Comment reputation system (отдельной фазой, без смешения с ingestion scope).
+2. Comment reputation system.
+3. При необходимости: углубление automation infra для масштабного backfill/операций.
