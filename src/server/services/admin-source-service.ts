@@ -16,6 +16,7 @@ import {
 import type {
   CreateSourceChannelInput,
   ImportRun,
+  ResolvedContentItem,
   ResolvedSourceChannel,
 } from "@/types/content";
 
@@ -146,6 +147,66 @@ function markChannelsInProgress(
   }));
 }
 
+function summarizeIngestionAutomation(items: ResolvedContentItem[]) {
+  const imported = items.filter((item) => item.sourceType === "imported");
+
+  const summary = imported.reduce(
+    (acc, item) => {
+      const payload =
+        item.sourcePayload && typeof item.sourcePayload === "object"
+          ? (item.sourcePayload as Record<string, unknown>)
+          : null;
+      const ingestion =
+        payload?.ingestion && typeof payload.ingestion === "object"
+          ? (payload.ingestion as Record<string, unknown>)
+          : null;
+      const automation =
+        payload?.automation && typeof payload.automation === "object"
+          ? (payload.automation as Record<string, unknown>)
+          : null;
+      const mapping =
+        payload?.mapping && typeof payload.mapping === "object"
+          ? (payload.mapping as Record<string, unknown>)
+          : null;
+
+      const sourceTagsExact = ingestion?.sourceTagsExact === true;
+      const apiBacked = ingestion?.youtubeDataApiUsed === true;
+      const reviewState =
+        automation?.reviewState === "review_needed" ||
+        automation?.reviewState === "review_light" ||
+        automation?.reviewState === "auto_published"
+          ? automation.reviewState
+          : mapping?.needsReview !== false
+            ? "review_needed"
+            : "review_light";
+
+      acc.importedTotal += 1;
+      if (apiBacked) {
+        acc.apiBackedTotal += 1;
+      } else {
+        acc.bestEffortTotal += 1;
+      }
+      if (sourceTagsExact) {
+        acc.exactTagsTotal += 1;
+      }
+      if (reviewState === "review_needed") {
+        acc.reviewNeededTotal += 1;
+      }
+
+      return acc;
+    },
+    {
+      importedTotal: 0,
+      apiBackedTotal: 0,
+      exactTagsTotal: 0,
+      bestEffortTotal: 0,
+      reviewNeededTotal: 0,
+    },
+  );
+
+  return summary;
+}
+
 export async function getAdminSourceRegistryData(host: string) {
   const repository = getContentRepository();
   const gate = await resolveAdminGateContext(host);
@@ -257,10 +318,20 @@ export async function getAdminImportsData(
         failed: 0,
         running: 0,
       },
+      automationSummary: {
+        importedTotal: 0,
+        apiBackedTotal: 0,
+        exactTagsTotal: 0,
+        bestEffortTotal: 0,
+        reviewNeededTotal: 0,
+      },
     };
   }
 
-  const channels = await repository.listSourceChannels();
+  const [channels, adminItems] = await Promise.all([
+    repository.listSourceChannels(),
+    repository.listAdminContentItems(),
+  ]);
   let runs: ImportRun[] = [];
   let ingestionRuntimeWarning: string | null = null;
 
@@ -274,6 +345,7 @@ export async function getAdminImportsData(
   }
 
   const filteredRuns = applyImportFilters(runs, normalizedFilters);
+  const automationSummary = summarizeIngestionAutomation(adminItems);
   return {
     gate,
     filters: normalizedFilters,
@@ -290,6 +362,7 @@ export async function getAdminImportsData(
       failed: filteredRuns.filter((run) => run.status === "failed").length,
       running: filteredRuns.filter((run) => run.status === "running").length,
     },
+    automationSummary,
   };
 }
 

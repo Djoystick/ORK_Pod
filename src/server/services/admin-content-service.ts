@@ -24,9 +24,47 @@ type AdminContentFilterInput = {
   platform?: string;
   category?: string;
   review?: string;
+  confidence?: string;
+  metadataMode?: string;
 };
 
 type AutomationReviewState = "review_needed" | "review_light" | "auto_published";
+
+function readIngestionPayload(item: ResolvedContentItem) {
+  const payload = item.sourcePayload;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const payloadRecord = payload as Record<string, unknown>;
+  const ingestion =
+    payloadRecord.ingestion && typeof payloadRecord.ingestion === "object"
+      ? (payloadRecord.ingestion as Record<string, unknown>)
+      : null;
+  return ingestion;
+}
+
+function readMappingConfidence(item: ResolvedContentItem): "high" | "medium" | "low" | null {
+  const payload = item.sourcePayload;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const mapping =
+    (payload as Record<string, unknown>).mapping &&
+    typeof (payload as Record<string, unknown>).mapping === "object"
+      ? ((payload as Record<string, unknown>).mapping as Record<string, unknown>)
+      : null;
+  if (
+    mapping?.confidence === "high" ||
+    mapping?.confidence === "medium" ||
+    mapping?.confidence === "low"
+  ) {
+    return mapping.confidence;
+  }
+
+  return null;
+}
 
 function readAutomationReviewState(item: ResolvedContentItem): AutomationReviewState | null {
   const payload = item.sourcePayload;
@@ -58,6 +96,35 @@ function readAutomationReviewState(item: ResolvedContentItem): AutomationReviewS
 
   if (item.sourceType === "imported") {
     return "review_light";
+  }
+
+  return null;
+}
+
+function readMetadataMode(item: ResolvedContentItem): "exact_api" | "api_backed" | "best_effort" | null {
+  if (item.sourceType !== "imported") {
+    return null;
+  }
+
+  const ingestion = readIngestionPayload(item);
+  if (!ingestion) {
+    return null;
+  }
+
+  const youtubeDataApiUsed = ingestion.youtubeDataApiUsed === true;
+  const sourceTagsExact = ingestion.sourceTagsExact === true;
+  const metadataSources = Array.isArray(ingestion.metadataSources)
+    ? ingestion.metadataSources.filter((entry): entry is string => typeof entry === "string")
+    : [];
+
+  if (youtubeDataApiUsed && sourceTagsExact) {
+    return "exact_api";
+  }
+  if (youtubeDataApiUsed) {
+    return "api_backed";
+  }
+  if (metadataSources.length > 0) {
+    return "best_effort";
   }
 
   return null;
@@ -158,15 +225,40 @@ function applyAdminContentFilters(
       !filters.category || filters.category === "all" || item.category.slug === filters.category;
     const reviewFilter = filters.review ?? "all";
     const reviewState = readAutomationReviewState(item);
+    const confidenceFilter = filters.confidence ?? "all";
+    const mappingConfidence = readMappingConfidence(item);
+    const metadataModeFilter = filters.metadataMode ?? "all";
+    const metadataMode = readMetadataMode(item);
     const matchesReview =
       reviewFilter === "all" ||
       (reviewFilter === "review_needed" && reviewState === "review_needed") ||
       (reviewFilter === "review_light" && reviewState === "review_light") ||
       (reviewFilter === "auto_published" && reviewState === "auto_published") ||
       (reviewFilter === "no_signals" && reviewState === null);
+    const matchesConfidence =
+      confidenceFilter === "all" ||
+      (confidenceFilter === "high" && mappingConfidence === "high") ||
+      (confidenceFilter === "medium" && mappingConfidence === "medium") ||
+      (confidenceFilter === "low" && mappingConfidence === "low") ||
+      (confidenceFilter === "no_signals" && mappingConfidence === null);
+    const matchesMetadataMode =
+      metadataModeFilter === "all" ||
+      (metadataModeFilter === "exact_api" && metadataMode === "exact_api") ||
+      (metadataModeFilter === "api_backed" &&
+        (metadataMode === "api_backed" || metadataMode === "exact_api")) ||
+      (metadataModeFilter === "best_effort" && metadataMode === "best_effort") ||
+      (metadataModeFilter === "no_signals" && metadataMode === null);
 
     if (!q) {
-      return matchesStatus && matchesSourceType && matchesPlatform && matchesCategory && matchesReview;
+      return (
+        matchesStatus &&
+        matchesSourceType &&
+        matchesPlatform &&
+        matchesCategory &&
+        matchesReview &&
+        matchesConfidence &&
+        matchesMetadataMode
+      );
     }
 
     const searchable = [
@@ -189,6 +281,8 @@ function applyAdminContentFilters(
       matchesPlatform &&
       matchesCategory &&
       matchesReview &&
+      matchesConfidence &&
+      matchesMetadataMode &&
       searchable.includes(q)
     );
   });
@@ -279,6 +373,8 @@ export async function getAdminContentListData(
         platform: filters.platform ?? "all",
         category: filters.category ?? "all",
         review: filters.review ?? "all",
+        confidence: filters.confidence ?? "all",
+        metadataMode: filters.metadataMode ?? "all",
       },
       items: [],
       taxonomy: await repository.listTaxonomy(),
@@ -297,6 +393,8 @@ export async function getAdminContentListData(
     platform: filters.platform ?? "all",
     category: filters.category ?? "all",
     review: filters.review ?? "all",
+    confidence: filters.confidence ?? "all",
+    metadataMode: filters.metadataMode ?? "all",
   };
 
   return {

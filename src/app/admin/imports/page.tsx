@@ -51,7 +51,7 @@ function statusBadge(status: ImportRun["status"]) {
 export default async function AdminImportsPage({ searchParams }: AdminImportsPageProps) {
   const params = await searchParams;
   const host = (await headers()).get("host") ?? "";
-  const { gate, runs, sources, filters, summary, ingestionRuntimeWarning } =
+  const { gate, runs, sources, filters, summary, automationSummary, ingestionRuntimeWarning } =
     await getAdminImportsData(host, params);
 
   return (
@@ -88,6 +88,29 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
         <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Running</p>
           <p className="mt-2 text-2xl font-semibold text-zinc-100">{summary.running}</p>
+        </article>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-5">
+        <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Imported Total</p>
+          <p className="mt-2 text-2xl font-semibold text-zinc-100">{automationSummary.importedTotal}</p>
+        </article>
+        <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">API-backed</p>
+          <p className="mt-2 text-2xl font-semibold text-zinc-100">{automationSummary.apiBackedTotal}</p>
+        </article>
+        <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Exact Tags</p>
+          <p className="mt-2 text-2xl font-semibold text-zinc-100">{automationSummary.exactTagsTotal}</p>
+        </article>
+        <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Best-effort</p>
+          <p className="mt-2 text-2xl font-semibold text-zinc-100">{automationSummary.bestEffortTotal}</p>
+        </article>
+        <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Review Needed</p>
+          <p className="mt-2 text-2xl font-semibold text-zinc-100">{automationSummary.reviewNeededTotal}</p>
         </article>
       </div>
 

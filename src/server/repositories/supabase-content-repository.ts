@@ -879,6 +879,7 @@ export class SupabaseContentRepository implements ContentRepository {
       requestKey?: string;
       lockAcquiredAt?: string;
       lockReleasedAt?: string;
+      retryExternalSourceIds?: string[];
     },
   ): Promise<ImportRun> {
     void sourceId;

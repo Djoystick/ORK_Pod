@@ -13,6 +13,8 @@ type AdminContentPageProps = {
     platform?: string;
     category?: string;
     review?: string;
+    confidence?: string;
+    metadataMode?: string;
   }>;
 };
 
@@ -26,6 +28,8 @@ type MappingPreview = {
   reviewState: "review_needed" | "review_light" | "auto_published";
   publishDecision: "keep_draft" | "review_required" | "auto_publish";
   metadataReliability: "high" | "medium" | "low" | null;
+  metadataMode: "exact_api" | "api_backed" | "best_effort" | "unknown";
+  dataAcquisitionPath: string | null;
 };
 
 function statusBadge(status?: string) {
@@ -62,6 +66,11 @@ function getMappingPreview(item: { sourcePayload?: Record<string, unknown> | nul
     typeof (item.sourcePayload as Record<string, unknown>).automation === "object"
       ? ((item.sourcePayload as Record<string, unknown>).automation as Record<string, unknown>)
       : null;
+  const ingestion =
+    (item.sourcePayload as Record<string, unknown>).ingestion &&
+    typeof (item.sourcePayload as Record<string, unknown>).ingestion === "object"
+      ? ((item.sourcePayload as Record<string, unknown>).ingestion as Record<string, unknown>)
+      : null;
 
   const reviewState =
     automation?.reviewState === "review_needed" ||
@@ -87,6 +96,15 @@ function getMappingPreview(item: { sourcePayload?: Record<string, unknown> | nul
     mapping.metadataReliability === "low"
       ? mapping.metadataReliability
       : null;
+  const sourceTagsExact = ingestion?.sourceTagsExact === true;
+  const youtubeDataApiUsed = ingestion?.youtubeDataApiUsed === true;
+  const metadataMode = sourceTagsExact
+    ? "exact_api"
+    : youtubeDataApiUsed
+      ? "api_backed"
+      : "best_effort";
+  const dataAcquisitionPath =
+    typeof ingestion?.dataAcquisitionPath === "string" ? ingestion.dataAcquisitionPath : null;
 
   return {
     confidence: mapping.confidence,
@@ -100,6 +118,8 @@ function getMappingPreview(item: { sourcePayload?: Record<string, unknown> | nul
     reviewState,
     publishDecision,
     metadataReliability,
+    metadataMode,
+    dataAcquisitionPath,
   } satisfies MappingPreview;
 }
 
@@ -137,7 +157,7 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
 
       <AdminGateNotice gate={gate} />
 
-      <form className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-6">
+      <form className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-8">
         <label className="grid gap-1 text-xs text-zinc-400">
           РџРѕРёСЃРє
           <input
@@ -216,7 +236,35 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
             <option value="no_signals">no_signals</option>
           </select>
         </label>
-        <div className="md:col-span-6">
+        <label className="grid gap-1 text-xs text-zinc-400">
+          Confidence
+          <select
+            name="confidence"
+            defaultValue={filters.confidence}
+            className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/70"
+          >
+            <option value="all">all</option>
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="low">low</option>
+            <option value="no_signals">no_signals</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs text-zinc-400">
+          Metadata mode
+          <select
+            name="metadataMode"
+            defaultValue={filters.metadataMode}
+            className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/70"
+          >
+            <option value="all">all</option>
+            <option value="exact_api">exact_api</option>
+            <option value="api_backed">api_backed</option>
+            <option value="best_effort">best_effort</option>
+            <option value="no_signals">no_signals</option>
+          </select>
+        </label>
+        <div className="md:col-span-8">
           <button
             type="submit"
             className="h-10 rounded-lg bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200"
@@ -279,6 +327,10 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
                             {mapping.fallbackUsed ? " · fallback" : ""}
                             {mapping.metadataReliability
                               ? ` · metadata ${mapping.metadataReliability}`
+                              : ""}
+                            {` · ${mapping.metadataMode}`}
+                            {mapping.dataAcquisitionPath
+                              ? ` · ${mapping.dataAcquisitionPath}`
                               : ""}
                             {` · ${mapping.publishDecision}`}
                           </p>

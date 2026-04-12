@@ -244,6 +244,7 @@ export async function runSourceSyncJob(params: {
   trigger?: ImportRunTrigger;
   parentRunId?: string;
   requestKey?: string;
+  retryExternalSourceIds?: string[];
 }) {
   const repository = getContentRepository();
   const source = await getSourceById(params.sourceId);
@@ -264,6 +265,7 @@ export async function runSourceSyncJob(params: {
       parentRunId: params.parentRunId,
       requestKey: params.requestKey,
       lockAcquiredAt: sourceLock.lock.acquiredAt,
+      retryExternalSourceIds: params.retryExternalSourceIds,
     });
   } finally {
     await releaseSourceLock(sourceLock.lock.id);
@@ -280,11 +282,19 @@ export async function rerunImportRunById(params: {
     throw new Error("Import run не найден.");
   }
 
+  const failedExternalSourceIds = run.itemResults
+    .filter((item) => item.status === "failed")
+    .map((item) => item.externalSourceId)
+    .filter((entry) => typeof entry === "string" && entry.trim().length > 0);
+  const uniqueFailedExternalSourceIds = [...new Set(failedExternalSourceIds)];
+  const shouldRetryFailedItems = uniqueFailedExternalSourceIds.length > 0;
+
   return runSourceSyncJob({
     sourceId: run.sourceChannelId,
-    trigger: "rerun_source",
+    trigger: shouldRetryFailedItems ? "retry_failed_items" : "rerun_source",
     parentRunId: run.id,
     requestKey: params.requestKey,
+    retryExternalSourceIds: shouldRetryFailedItems ? uniqueFailedExternalSourceIds : undefined,
   });
 }
 

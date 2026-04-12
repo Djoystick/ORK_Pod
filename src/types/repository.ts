@@ -43,6 +43,7 @@ export interface ContentRepository {
       requestKey?: string;
       lockAcquiredAt?: string;
       lockReleasedAt?: string;
+      retryExternalSourceIds?: string[];
     },
   ): Promise<ImportRun>;
   runAllActiveSourceSync(options?: { requestKey?: string }): Promise<ImportRun[]>;

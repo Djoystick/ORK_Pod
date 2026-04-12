@@ -239,6 +239,14 @@ function chooseDefaultImportedCategoryId() {
   return categories.find((entry) => entry.slug === "analysis")?.id ?? categories[0]?.id ?? "cat-analysis";
 }
 
+function isCanonicalYouTubeChannelId(value: string | null | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  return /^UC[\w-]{22}$/.test(value.trim());
+}
+
 function chooseDefaultImportedSeriesId(categoryId: string) {
   const preferred = seriesList.find((entry) => entry.slug === "archive-notes");
   if (preferred && preferred.categoryId === categoryId) {
@@ -496,6 +504,41 @@ function sortAndDeduplicate(values: string[]) {
   return deduplicateCaseInsensitive(values).sort((a, b) => a.localeCompare(b));
 }
 
+const lowSignalSourceTags = new Set([
+  "video",
+  "videos",
+  "youtube",
+  "stream",
+  "shorts",
+  "dela",
+  "ladda upp",
+  "gratis",
+  "kameratelefon",
+  "videotelefon",
+]);
+
+function normalizeSourceTagSignalsForMapping(rawTags: string[]) {
+  return sortAndDeduplicate(
+    rawTags
+      .map((entry) => normalizeForMatch(entry))
+      .filter((entry) => entry.length >= 3)
+      .filter((entry) => /[a-zа-я0-9]/i.test(entry))
+      .filter((entry) => !lowSignalSourceTags.has(entry)),
+  );
+}
+
+function hasExactSourceTagsSignal(video: NormalizedYouTubeVideo) {
+  const ingestion =
+    video.sourcePayload &&
+    typeof video.sourcePayload === "object" &&
+    (video.sourcePayload as Record<string, unknown>).ingestion &&
+    typeof (video.sourcePayload as Record<string, unknown>).ingestion === "object"
+      ? ((video.sourcePayload as Record<string, unknown>).ingestion as Record<string, unknown>)
+      : null;
+
+  return ingestion?.sourceTagsExact === true;
+}
+
 function areSameStringSets(left: string[] | undefined | null, right: string[] | undefined | null) {
   const a = sortAndDeduplicate(left ?? []);
   const b = sortAndDeduplicate(right ?? []);
@@ -504,6 +547,31 @@ function areSameStringSets(left: string[] | undefined | null, right: string[] | 
   }
 
   return a.every((entry, index) => entry === b[index]);
+}
+
+function readIngestionOperationalSignals(payload: Record<string, unknown> | null | undefined) {
+  const ingestion =
+    payload?.ingestion && typeof payload.ingestion === "object"
+      ? (payload.ingestion as Record<string, unknown>)
+      : null;
+
+  const metadataSources = Array.isArray(ingestion?.metadataSources)
+    ? sortAndDeduplicate(
+        ingestion.metadataSources.filter(
+          (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+        ),
+      )
+    : [];
+
+  return {
+    dataAcquisitionPath:
+      typeof ingestion?.dataAcquisitionPath === "string"
+        ? ingestion.dataAcquisitionPath
+        : null,
+    youtubeDataApiUsed: ingestion?.youtubeDataApiUsed === true,
+    sourceTagsExact: ingestion?.sourceTagsExact === true,
+    metadataSources,
+  };
 }
 
 function buildAutoMappingResult(params: {
@@ -526,7 +594,7 @@ function buildAutoMappingResult(params: {
     params.video.sourceChannelTitle ?? "",
     params.source.title,
     params.source.slug,
-    ...params.video.sourceTags,
+    ...normalizeSourceTagSignalsForMapping(params.video.sourceTags),
     ...sourceProfileBoostTerms,
   ].join(" ");
   const titleOnly = [params.video.title, params.video.sourceCategory ?? ""].join(" ");
@@ -605,7 +673,8 @@ function buildAutoMappingResult(params: {
     }
   }
 
-  const sourceTagSignals = sortAndDeduplicate(params.video.sourceTags.map((entry) => entry.toLowerCase()));
+  const sourceTagSignals = normalizeSourceTagSignalsForMapping(params.video.sourceTags);
+  const exactSourceTags = hasExactSourceTagsSignal(params.video);
   const preferredTagSlugSet = new Set(sourceProfile?.preferredTagSlugs ?? []);
   const tagCandidateEntries = tags
     .map((entry) => {
@@ -622,7 +691,7 @@ function buildAutoMappingResult(params: {
           signal.includes(entry.slug.toLowerCase()) ||
           signal.includes(entry.label.toLowerCase()),
       );
-      const directScore = directTagMatch ? 3 : 0;
+      const directScore = directTagMatch ? (exactSourceTags ? 5 : 3) : 0;
       const sourceProfileBoost = preferredTagSlugSet.has(entry.slug) ? 2 : 0;
       const totalScore = keywordSignal.score + directScore + sourceProfileBoost;
 
@@ -666,11 +735,17 @@ function buildAutoMappingResult(params: {
     selectedSeriesSignal.score +
     (resolvedTagIds.length >= 3 ? 4 : resolvedTagIds.length > 0 ? 2 : 0) +
     (sourceTagSignals.length >= 2 ? 1 : 0) +
+    (exactSourceTags ? 3 : 0) +
     (metadataSignals.overallReliability === "high"
       ? 2
       : metadataSignals.overallReliability === "medium"
         ? 1
         : 0);
+
+  const hasStrongSemanticSignals =
+    selectedCategorySignal.allMatches.length > 0 ||
+    selectedSeriesSignal.allMatches.length > 0 ||
+    tagCandidateEntries.some((entry) => entry.totalScore >= 4);
 
   let confidence: MappingConfidence = score >= 12 ? "high" : score >= 7 ? "medium" : "low";
   if (metadataSignals.overallReliability === "low" && confidence === "high") {
@@ -679,16 +754,20 @@ function buildAutoMappingResult(params: {
   if (metadataSignals.overallReliability === "low" && confidence === "medium") {
     confidence = "low";
   }
+  if (!hasStrongSemanticSignals && !exactSourceTags && confidence === "high") {
+    confidence = "medium";
+  }
 
   const fallbackUsed =
     (selectedCategorySignal.allMatches.length === 0 && !sourceProfile?.preferredCategorySlug) ||
     (selectedSeriesSignal.allMatches.length === 0 &&
       !sourceProfile?.preferredSeriesSlug &&
       Boolean(selectedSeries)) ||
-    resolvedTagIds.length === 0;
+    (resolvedTagIds.length === 0 && !exactSourceTags);
   const needsReview =
     confidence !== "high" ||
     fallbackUsed ||
+    !hasStrongSemanticSignals ||
     metadataSignals.overallReliability !== "high" ||
     metadataSignals.missingCriticalFields.length > 0;
 
@@ -709,6 +788,8 @@ function buildAutoMappingResult(params: {
       `tags:${resolvedTagIds.length}`,
       `mapping_score:${score}`,
       `mapping_confidence:${confidence}`,
+      `source_tags_exact:${exactSourceTags ? "true" : "false"}`,
+      `semantic_signals:${hasStrongSemanticSignals ? "strong" : "weak"}`,
       sourceProfile ? `source_profile:${params.source.slug}` : "source_profile:none",
       `metadata_reliability:${metadataSignals.overallReliability}`,
       ...metadataSignals.reasonCodes,
@@ -1328,6 +1409,7 @@ export class SeedContentRepository implements ContentRepository {
       requestKey?: string;
       lockAcquiredAt?: string;
       lockReleasedAt?: string;
+      retryExternalSourceIds?: string[];
     },
   ) {
     const now = new Date().toISOString();
@@ -1378,13 +1460,19 @@ export class SeedContentRepository implements ContentRepository {
       }
 
       const { resolved, videos } = await fetchYouTubeChannelVideos(source);
+      const filteredVideos =
+        options?.trigger === "retry_failed_items" &&
+        Array.isArray(options.retryExternalSourceIds) &&
+        options.retryExternalSourceIds.length > 0
+          ? videos.filter((video) => options.retryExternalSourceIds?.includes(video.externalSourceId))
+          : videos;
       const allItems = await readLocalFallbackContentItems();
 
       const defaultCategoryId = chooseDefaultImportedCategoryId();
       const defaultSeriesId = chooseDefaultImportedSeriesId(defaultCategoryId);
       const itemResults: ImportRunItemResult[] = [];
 
-      for (const video of videos) {
+      for (const video of filteredVideos) {
         try {
           const metadataSignals = readMetadataSignals(video);
           const mapping = buildAutoMappingResult({
@@ -1582,6 +1670,14 @@ export class SeedContentRepository implements ContentRepository {
           const automationChanged =
             JSON.stringify(existingAutomationComparable) !==
             JSON.stringify(nextAutomationComparable);
+          const existingIngestionOperationalSignals =
+            readIngestionOperationalSignals(existingPayloadRecord);
+          const nextIngestionOperationalSignals = readIngestionOperationalSignals(
+            nextSourcePayload as Record<string, unknown>,
+          );
+          const ingestionOperationalChanged =
+            JSON.stringify(existingIngestionOperationalSignals) !==
+            JSON.stringify(nextIngestionOperationalSignals);
 
           const shouldUpdate =
             existing.title !== nextTitle ||
@@ -1597,7 +1693,8 @@ export class SeedContentRepository implements ContentRepository {
             !areSameStringSets(existing.tagIds, nextTagIds) ||
             existing.platformId !== source.platformId ||
             mappingChanged ||
-            automationChanged;
+            automationChanged ||
+            ingestionOperationalChanged;
 
           if (!shouldUpdate) {
             run.skippedCount += 1;
@@ -1666,8 +1763,9 @@ export class SeedContentRepository implements ContentRepository {
         refreshedSourceChannels[refreshedSourceIndex] = {
           ...refreshedSourceChannels[refreshedSourceIndex],
           externalChannelId:
-            refreshedSourceChannels[refreshedSourceIndex].externalChannelId ??
-            resolved.channelId,
+            isCanonicalYouTubeChannelId(refreshedSourceChannels[refreshedSourceIndex].externalChannelId)
+              ? refreshedSourceChannels[refreshedSourceIndex].externalChannelId
+              : resolved.channelId,
           lastSyncedAt: finishedAt,
           lastSuccessfulSyncAt:
             run.status === "success" || run.status === "partial_success"

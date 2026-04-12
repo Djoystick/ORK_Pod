@@ -1,0 +1,148 @@
+{
+  "generatedAt": "2026-04-12T08:57:35.735Z",
+  "apiConfig": {
+    "apiKeyConfigured": false,
+    "preferPrimary": null,
+    "backfillMaxItemsPerSource": null,
+    "backfillPageSize": null
+  },
+  "activeYouTubeSources": [
+    {
+      "id": "channel-youtube-orkcut",
+      "slug": "orkcut",
+      "title": "orkcut",
+      "externalChannelId": "UCNr_ncGw36t2MhGG7pZ-X1Q",
+      "sourceUrl": "https://www.youtube.com/@orkcut/videos",
+      "isActive": true
+    },
+    {
+      "id": "channel-youtube-orkstream",
+      "slug": "orkstream",
+      "title": "orkstream",
+      "externalChannelId": "UCDUyKdrKCYagMkUPBmPX59Q",
+      "sourceUrl": "https://www.youtube.com/@orkstream/videos",
+      "isActive": true
+    },
+    {
+      "id": "channel-youtube-orkpod",
+      "slug": "orkpod-youtube",
+      "title": "ORKPOD YouTube",
+      "externalChannelId": "UCPZZring891k7JVnr70dlIw",
+      "sourceUrl": "https://youtube.com/@orkpod",
+      "isActive": true
+    }
+  ],
+  "baselineSummary": {
+    "importedTotal": 45,
+    "duplicatesByExternalSourceId": 0,
+    "bySource": {
+      "orkstream": 15,
+      "orkcut": 15,
+      "orkpod-youtube": 15
+    },
+    "byAcquisitionPath": {
+      "unknown": 45
+    },
+    "byReviewState": {
+      "review_light": 45
+    },
+    "byConfidence": {
+      "high": 45
+    },
+    "byMetadataReliability": {
+      "high": 45
+    },
+    "apiBackedCoverage": {
+      "apiBackedTotal": 0,
+      "bestEffortTotal": 45,
+      "total": 45
+    },
+    "exactTagsCoverage": {
+      "exactTagsTotal": 0,
+      "total": 45
+    },
+    "reviewNeededTotal": 0
+  },
+  "sourceRuns": [
+    {
+      "sourceSlug": "orkcut",
+      "runId": "import-run-a93f134f-cd02-4cd3-8520-42642f2f48fb",
+      "status": "success",
+      "trigger": "sync_source",
+      "created": 0,
+      "updated": 15,
+      "skipped": 0,
+      "failed": 0,
+      "error": null
+    },
+    {
+      "sourceSlug": "orkstream",
+      "runId": "import-run-be543476-daa2-4b97-b96f-1ee52ff12b33",
+      "status": "success",
+      "trigger": "sync_source",
+      "created": 0,
+      "updated": 15,
+      "skipped": 0,
+      "failed": 0,
+      "error": null
+    },
+    {
+      "sourceSlug": "orkpod-youtube",
+      "runId": "import-run-d7887b8f-cb34-4132-9096-5335075ea410",
+      "status": "success",
+      "trigger": "sync_source",
+      "created": 0,
+      "updated": 15,
+      "skipped": 0,
+      "failed": 0,
+      "error": null
+    }
+  ],
+  "dedupePass": {
+    "runsCount": 3,
+    "skippedLockedSources": [],
+    "aggregate": {
+      "created": 0,
+      "updated": 0,
+      "skipped": 45,
+      "failed": 0
+    }
+  },
+  "afterSummary": {
+    "importedTotal": 45,
+    "duplicatesByExternalSourceId": 0,
+    "bySource": {
+      "orkstream": 15,
+      "orkcut": 15,
+      "orkpod-youtube": 15
+    },
+    "byAcquisitionPath": {
+      "youtube_feed_fallback": 45
+    },
+    "byReviewState": {
+      "review_light": 45
+    },
+    "byConfidence": {
+      "high": 45
+    },
+    "byMetadataReliability": {
+      "high": 45
+    },
+    "apiBackedCoverage": {
+      "apiBackedTotal": 0,
+      "bestEffortTotal": 45,
+      "total": 45
+    },
+    "exactTagsCoverage": {
+      "exactTagsTotal": 0,
+      "total": 45
+    },
+    "reviewNeededTotal": 0
+  },
+  "delta": {
+    "importedTotal": 0,
+    "apiBackedTotal": 0,
+    "exactTagsTotal": 0,
+    "duplicatesByExternalSourceId": 0
+  }
+}

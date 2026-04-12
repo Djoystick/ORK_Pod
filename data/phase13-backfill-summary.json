@@ -1,0 +1,202 @@
+{
+  "generatedAt": "2026-04-12T08:29:13.317Z",
+  "activeYouTubeSources": [
+    {
+      "id": "channel-youtube-orkcut",
+      "slug": "orkcut",
+      "title": "orkcut",
+      "externalChannelId": "@orkcut",
+      "sourceUrl": "https://www.youtube.com/@orkcut/videos",
+      "isActive": true
+    },
+    {
+      "id": "channel-youtube-orkstream",
+      "slug": "orkstream",
+      "title": "orkstream",
+      "externalChannelId": "@orkstream",
+      "sourceUrl": "https://www.youtube.com/@orkstream/videos",
+      "isActive": true
+    },
+    {
+      "id": "channel-youtube-orkpod",
+      "slug": "orkpod-youtube",
+      "title": "ORKPOD YouTube",
+      "externalChannelId": "UC-ORKPOD-YouTube",
+      "sourceUrl": "https://youtube.com/@orkpod",
+      "isActive": true
+    }
+  ],
+  "baselineSummary": {
+    "importedTotal": 30,
+    "duplicatesByExternalSourceId": 0,
+    "bySource": {
+      "orkstream": 15,
+      "orkcut": 15
+    },
+    "byStatus": {
+      "draft": 30
+    },
+    "byConfidence": {
+      "high": 30
+    },
+    "byReviewState": {
+      "review_light": 30
+    },
+    "byPublishDecision": {
+      "keep_draft": 30
+    },
+    "byMetadataReliability": {
+      "high": 30
+    },
+    "sourceTagsExactCoverage": {
+      "exactCount": 0,
+      "total": 30
+    },
+    "metadataSourceUsage": {
+      "orkstream:feed": 15,
+      "orkstream:watch_page": 15,
+      "orkstream:oembed": 15,
+      "orkcut:feed": 15,
+      "orkcut:watch_page": 15,
+      "orkcut:oembed": 15
+    },
+    "lowConfidenceReasonClusters": {}
+  },
+  "sourceRuns": [
+    {
+      "sourceSlug": "orkcut",
+      "runId": "import-run-fc708bdb-bf7e-4a04-b3b5-a33f3f27d6ff",
+      "status": "success",
+      "trigger": "sync_source",
+      "created": 0,
+      "updated": 0,
+      "skipped": 15,
+      "failed": 0,
+      "error": null
+    },
+    {
+      "sourceSlug": "orkstream",
+      "runId": "import-run-6047fc84-c87a-41af-9938-a07c98293293",
+      "status": "success",
+      "trigger": "sync_source",
+      "created": 0,
+      "updated": 0,
+      "skipped": 15,
+      "failed": 0,
+      "error": null
+    },
+    {
+      "sourceSlug": "orkpod-youtube",
+      "runId": "import-run-048b04e0-c9b8-4f3e-a6ce-1e8474707d76",
+      "status": "success",
+      "trigger": "sync_source",
+      "created": 15,
+      "updated": 0,
+      "skipped": 0,
+      "failed": 0,
+      "error": null
+    }
+  ],
+  "dedupePass": {
+    "runsCount": 3,
+    "skippedLockedSources": [],
+    "aggregate": {
+      "created": 0,
+      "updated": 15,
+      "skipped": 30,
+      "failed": 0
+    }
+  },
+  "rerunAttempts": [
+    {
+      "sourceSlug": "orkpod-youtube",
+      "parentRunId": "import-run-88fec389-fb32-4564-87f0-452ec8a23d9b",
+      "rerunRunId": "import-run-6c2b183b-1780-4d4a-9564-d74fe2a477c4",
+      "rerunStatus": "success",
+      "trigger": "rerun_source",
+      "failed": 0,
+      "error": null
+    },
+    {
+      "sourceSlug": "orkpod-youtube",
+      "parentRunId": "import-run-d4649f54-c45a-40e3-9c63-752a948ecc86",
+      "rerunRunId": "import-run-cdf5aa24-4e83-4377-84bb-bcbe98379527",
+      "rerunStatus": "success",
+      "trigger": "rerun_source",
+      "failed": 0,
+      "error": null
+    },
+    {
+      "sourceSlug": "orkpod-youtube",
+      "parentRunId": "import-run-184da4da-7ab8-4287-8e9d-a06da9891014",
+      "rerunRunId": "import-run-db5d4dc7-07b9-494a-8837-6f7475a4b8ee",
+      "rerunStatus": "success",
+      "trigger": "rerun_source",
+      "failed": 0,
+      "error": null
+    },
+    {
+      "sourceSlug": "orkpod-youtube",
+      "parentRunId": "import-run-db9d09fe-b514-4f7d-92b5-b39fe108f874",
+      "rerunRunId": "import-run-e44449b2-5fda-4e02-8f60-801d29a04dde",
+      "rerunStatus": "success",
+      "trigger": "rerun_source",
+      "failed": 0,
+      "error": null
+    },
+    {
+      "sourceSlug": "orkpod-youtube",
+      "parentRunId": "import-run-75f3175a-ecc4-4a39-90e1-6d64409b7e18",
+      "rerunRunId": "import-run-fb5963d2-c0bc-4236-a492-2dec2c92549c",
+      "rerunStatus": "success",
+      "trigger": "rerun_source",
+      "failed": 0,
+      "error": null
+    }
+  ],
+  "afterSummary": {
+    "importedTotal": 45,
+    "duplicatesByExternalSourceId": 0,
+    "bySource": {
+      "orkstream": 15,
+      "orkcut": 15,
+      "orkpod-youtube": 15
+    },
+    "byStatus": {
+      "draft": 45
+    },
+    "byConfidence": {
+      "high": 45
+    },
+    "byReviewState": {
+      "review_light": 45
+    },
+    "byPublishDecision": {
+      "keep_draft": 45
+    },
+    "byMetadataReliability": {
+      "high": 45
+    },
+    "sourceTagsExactCoverage": {
+      "exactCount": 0,
+      "total": 45
+    },
+    "metadataSourceUsage": {
+      "orkstream:feed": 15,
+      "orkstream:watch_page": 15,
+      "orkstream:oembed": 15,
+      "orkcut:feed": 15,
+      "orkcut:watch_page": 15,
+      "orkcut:oembed": 15,
+      "orkpod-youtube:feed": 15,
+      "orkpod-youtube:watch_page": 15,
+      "orkpod-youtube:oembed": 15
+    },
+    "lowConfidenceReasonClusters": {}
+  },
+  "delta": {
+    "importedTotal": 15,
+    "exactTagsCount": 0,
+    "duplicatesByExternalSourceId": 0
+  }
+}

@@ -41,6 +41,10 @@ type MappingPreview = {
   categorySlug: string | null;
   seriesSlug: string | null;
   tagCount: number;
+  sourceTagsExact: boolean | null;
+  youtubeDataApiUsed: boolean;
+  dataAcquisitionPath: string | null;
+  metadataSources: string[];
 };
 
 function extractMappingPreview(payload: Record<string, unknown> | null | undefined) {
@@ -65,6 +69,10 @@ function extractMappingPreview(payload: Record<string, unknown> | null | undefin
   const automation =
     payload.automation && typeof payload.automation === "object"
       ? (payload.automation as Record<string, unknown>)
+      : null;
+  const ingestion =
+    payload.ingestion && typeof payload.ingestion === "object"
+      ? (payload.ingestion as Record<string, unknown>)
       : null;
   const reviewState =
     automation?.reviewState === "review_needed" ||
@@ -110,6 +118,20 @@ function extractMappingPreview(payload: Record<string, unknown> | null | undefin
     tagCount: Array.isArray(mapping.tagIds)
       ? mapping.tagIds.filter((entry) => typeof entry === "string").length
       : 0,
+    sourceTagsExact:
+      ingestion?.sourceTagsExact === true
+        ? true
+        : ingestion?.sourceTagsExact === false
+          ? false
+          : null,
+    youtubeDataApiUsed: ingestion?.youtubeDataApiUsed === true,
+    dataAcquisitionPath:
+      typeof ingestion?.dataAcquisitionPath === "string"
+        ? ingestion.dataAcquisitionPath
+        : null,
+    metadataSources: Array.isArray(ingestion?.metadataSources)
+      ? ingestion.metadataSources.filter((entry): entry is string => typeof entry === "string")
+      : [],
   } satisfies MappingPreview;
 }
 
@@ -330,6 +352,21 @@ export function EditContentForm({
                     ? ` · metadata ${mappingPreview.metadataReliability}`
                     : ""}
                 </p>
+                <p>
+                  ingestion:{" "}
+                  <span className="text-zinc-100">
+                    {mappingPreview.youtubeDataApiUsed ? "api_backed" : "best_effort"}
+                    {mappingPreview.sourceTagsExact === true ? " · exact_tags" : ""}
+                  </span>
+                  {mappingPreview.dataAcquisitionPath
+                    ? ` · ${mappingPreview.dataAcquisitionPath}`
+                    : ""}
+                </p>
+                {mappingPreview.metadataSources.length > 0 ? (
+                  <p className="line-clamp-2 text-zinc-400">
+                    metadata sources: {mappingPreview.metadataSources.join(", ")}
+                  </p>
+                ) : null}
                 <p>
                   category/series:{" "}
                   <span className="text-zinc-100">
