@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  evaluatePublishReadiness,
+  type PublishReadinessResult,
+} from "@/lib/publish-readiness";
 import { sanitizeSlug } from "@/lib/slug";
 import { resolveAdminGateContext, assertAdminWriteAccess } from "@/server/auth/admin-gate";
 import { getContentRepository } from "@/server/repositories/content-repository";
@@ -26,6 +30,7 @@ type AdminContentFilterInput = {
   review?: string;
   confidence?: string;
   metadataMode?: string;
+  publishReady?: string;
 };
 
 type AutomationReviewState = "review_needed" | "review_light" | "auto_published";
@@ -212,6 +217,7 @@ function parseUpdateInput(data: FormData): UpdateContentItemInput & { bootstrapK
 function applyAdminContentFilters(
   items: ResolvedContentItem[],
   filters: AdminContentFilterInput,
+  publishReadinessById: Record<string, PublishReadinessResult>,
 ) {
   const q = (filters.q ?? "").trim().toLowerCase();
 
@@ -248,6 +254,12 @@ function applyAdminContentFilters(
         (metadataMode === "api_backed" || metadataMode === "exact_api")) ||
       (metadataModeFilter === "best_effort" && metadataMode === "best_effort") ||
       (metadataModeFilter === "no_signals" && metadataMode === null);
+    const readinessFilter = filters.publishReady ?? "all";
+    const readiness = publishReadinessById[item.id];
+    const matchesPublishReady =
+      readinessFilter === "all" ||
+      (readinessFilter === "ready" && readiness?.isReady === true) ||
+      (readinessFilter === "blocked" && readiness?.isReady === false);
 
     if (!q) {
       return (
@@ -257,7 +269,8 @@ function applyAdminContentFilters(
         matchesCategory &&
         matchesReview &&
         matchesConfidence &&
-        matchesMetadataMode
+        matchesMetadataMode &&
+        matchesPublishReady
       );
     }
 
@@ -283,6 +296,7 @@ function applyAdminContentFilters(
       matchesReview &&
       matchesConfidence &&
       matchesMetadataMode &&
+      matchesPublishReady &&
       searchable.includes(q)
     );
   });
@@ -375,9 +389,17 @@ export async function getAdminContentListData(
         review: filters.review ?? "all",
         confidence: filters.confidence ?? "all",
         metadataMode: filters.metadataMode ?? "all",
+        publishReady: filters.publishReady ?? "all",
       },
       items: [],
       taxonomy: await repository.listTaxonomy(),
+      publishReadinessById: {} as Record<string, PublishReadinessResult>,
+      publishReadinessSummary: {
+        draftCount: 0,
+        readyDraftCount: 0,
+        blockedDraftCount: 0,
+        filteredReadyCount: 0,
+      },
     };
   }
 
@@ -395,13 +417,30 @@ export async function getAdminContentListData(
     review: filters.review ?? "all",
     confidence: filters.confidence ?? "all",
     metadataMode: filters.metadataMode ?? "all",
+    publishReady: filters.publishReady ?? "all",
   };
+  const publishReadinessById = Object.fromEntries(
+    items.map((item) => [item.id, evaluatePublishReadiness(item)]),
+  ) as Record<string, PublishReadinessResult>;
+  const filteredItems = applyAdminContentFilters(items, normalizedFilters, publishReadinessById);
+  const draftItems = items.filter((item) => item.status === "draft");
+  const readyDraftCount = draftItems.filter((item) => publishReadinessById[item.id]?.isReady).length;
+  const filteredReadyCount = filteredItems.filter(
+    (item) => publishReadinessById[item.id]?.isReady,
+  ).length;
 
   return {
     gate,
     filters: normalizedFilters,
-    items: applyAdminContentFilters(items, normalizedFilters),
+    items: filteredItems,
     taxonomy,
+    publishReadinessById,
+    publishReadinessSummary: {
+      draftCount: draftItems.length,
+      readyDraftCount,
+      blockedDraftCount: Math.max(0, draftItems.length - readyDraftCount),
+      filteredReadyCount,
+    },
   };
 }
 
@@ -462,4 +501,52 @@ export async function setContentStatusViaRepository({
 
   const repository = getContentRepository();
   return repository.setContentItemStatus(id, status);
+}
+
+export async function bulkPublishReadyContentViaRepository({
+  host,
+  bootstrapKey,
+}: {
+  host: string;
+  bootstrapKey?: string;
+}) {
+  await assertAdminWriteAccess({
+    host,
+    providedKey: bootstrapKey,
+  });
+
+  const repository = getContentRepository();
+  const items = await repository.listAdminContentItems();
+  const evaluations = items.map((item) => ({
+    item,
+    readiness: evaluatePublishReadiness(item),
+  }));
+  const eligible = evaluations.filter((entry) => entry.readiness.isReady);
+
+  let publishedCount = 0;
+  const failed: Array<{ id: string; title: string; message: string }> = [];
+
+  for (const entry of eligible) {
+    try {
+      await repository.setContentItemStatus(entry.item.id, "published");
+      publishedCount += 1;
+    } catch (error) {
+      failed.push({
+        id: entry.item.id,
+        title: entry.item.title,
+        message: error instanceof Error ? error.message : "Неизвестная ошибка публикации.",
+      });
+    }
+  }
+
+  return {
+    draftCount: evaluations.filter((entry) => entry.item.status === "draft").length,
+    eligibleCount: eligible.length,
+    publishedCount,
+    failedCount: failed.length,
+    blockedDraftCount: evaluations.filter(
+      (entry) => entry.item.status === "draft" && !entry.readiness.isReady,
+    ).length,
+    failed,
+  };
 }

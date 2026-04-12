@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 
+import { BulkPublishReadyForm } from "@/app/admin/content/bulk-publish-ready-form";
 import { AdminGateNotice } from "@/components/admin/admin-gate-notice";
 import { formatRuDate } from "@/lib/content";
+import type { PublishReadinessResult } from "@/lib/publish-readiness";
 import { getAdminContentListData } from "@/server/services/admin-content-service";
 
 type AdminContentPageProps = {
@@ -15,6 +17,7 @@ type AdminContentPageProps = {
     review?: string;
     confidence?: string;
     metadataMode?: string;
+    publishReady?: string;
   }>;
 };
 
@@ -143,10 +146,25 @@ function mappingBadge(mapping: MappingPreview | null) {
   return "border-amber-400/40 bg-amber-300/10 text-amber-100";
 }
 
+function readinessReasonLabel(key: string) {
+  if (key === "status_draft") return "status_draft";
+  if (key === "title") return "title";
+  if (key === "slug") return "slug";
+  if (key === "primary_link") return "primary_link";
+  if (key === "description") return "description";
+  if (key === "cover") return "cover";
+  if (key === "automation_confidence") return "confidence";
+  if (key === "automation_review") return "review_state";
+  if (key === "automation_publish_decision") return "publish_decision";
+  if (key === "automation_metadata_reliability") return "metadata_reliability";
+  return key;
+}
+
 export default async function AdminContentPage({ searchParams }: AdminContentPageProps) {
   const params = await searchParams;
   const host = (await headers()).get("host") ?? "";
-  const { gate, filters, items, taxonomy } = await getAdminContentListData(host, params);
+  const { gate, filters, items, taxonomy, publishReadinessById, publishReadinessSummary } =
+    await getAdminContentListData(host, params);
 
   return (
     <section className="space-y-4">
@@ -156,8 +174,9 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
       </div>
 
       <AdminGateNotice gate={gate} />
+      <BulkPublishReadyForm gate={gate} summary={publishReadinessSummary} />
 
-      <form className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-8">
+      <form className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-9">
         <label className="grid gap-1 text-xs text-zinc-400">
           Поиск
           <input
@@ -264,7 +283,19 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
             <option value="no_signals">no_signals</option>
           </select>
         </label>
-        <div className="md:col-span-8">
+        <label className="grid gap-1 text-xs text-zinc-400">
+          Publish ready
+          <select
+            name="publishReady"
+            defaultValue={filters.publishReady}
+            className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/70"
+          >
+            <option value="all">all</option>
+            <option value="ready">ready</option>
+            <option value="blocked">blocked</option>
+          </select>
+        </label>
+        <div className="md:col-span-9">
           <button
             type="submit"
             className="h-10 rounded-lg bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200"
@@ -290,6 +321,7 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
               <th className="px-4 py-3">Категория</th>
               <th className="px-4 py-3">Платформа</th>
               <th className="px-4 py-3">Auto-map</th>
+              <th className="px-4 py-3">Publish-ready</th>
               <th className="px-4 py-3">Дата</th>
               <th className="px-4 py-3" />
             </tr>
@@ -297,6 +329,7 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
           <tbody>
             {items.map((item) => {
               const mapping = getMappingPreview(item);
+              const readiness = publishReadinessById[item.id] as PublishReadinessResult | undefined;
               return (
                 <tr key={item.id} className="border-b border-white/5 last:border-b-0">
                   <td className="px-4 py-3">
@@ -340,6 +373,35 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
                       <span className="text-xs text-zinc-500">—</span>
                     )}
                   </td>
+                  <td className="px-4 py-3">
+                    {readiness ? (
+                      <div className="space-y-1">
+                        <span
+                          className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${
+                            readiness.isReady
+                              ? "border-emerald-400/40 bg-emerald-300/10 text-emerald-100"
+                              : "border-amber-400/40 bg-amber-300/10 text-amber-100"
+                          }`}
+                        >
+                          {readiness.isReady ? "ready" : "blocked"}
+                        </span>
+                        {!readiness.isReady ? (
+                          <p className="text-[11px] text-zinc-400">
+                            {readiness.failedChecks
+                              .slice(0, 2)
+                              .map((entry) => readinessReasonLabel(entry.key))
+                              .join(", ")}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-zinc-400">
+                            checks passed · {readiness.checks.length}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-zinc-500">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-zinc-300">{formatRuDate(item.publishedAt)}</td>
                   <td className="px-4 py-3">
                     <Link
@@ -354,7 +416,7 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
             })}
             {items.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-zinc-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-zinc-400">
                   Ничего не найдено по текущим фильтрам.
                 </td>
               </tr>
@@ -365,4 +427,3 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
     </section>
   );
 }
-

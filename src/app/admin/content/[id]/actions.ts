@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 
 import {
+  bulkPublishReadyContentViaRepository,
   setContentStatusViaRepository,
   updateContentViaRepository,
 } from "@/server/services/admin-content-service";
@@ -12,6 +13,11 @@ export type UpdateContentActionState = {
   status: "idle" | "success" | "error";
   message: string;
   slug?: string;
+};
+
+export type BulkPublishReadyActionState = {
+  status: "idle" | "success" | "error";
+  message: string;
 };
 
 function getErrorMessage(error: unknown) {
@@ -75,6 +81,32 @@ export async function setContentStatusAction(
     return {
       status: "success",
       message: `Статус обновлён: ${status}`,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: getErrorMessage(error),
+    };
+  }
+}
+
+export async function bulkPublishReadyContentAction(
+  _prevState: BulkPublishReadyActionState,
+  formData: FormData,
+): Promise<BulkPublishReadyActionState> {
+  try {
+    const host = (await headers()).get("host") ?? "";
+    const bootstrapKey = String(formData.get("bootstrapKey") ?? "").trim() || undefined;
+    const result = await bulkPublishReadyContentViaRepository({
+      host,
+      bootstrapKey,
+    });
+
+    return {
+      status: "success",
+      message:
+        `Bulk publish завершён: published ${result.publishedCount} / eligible ${result.eligibleCount}. ` +
+        `blocked draft ${result.blockedDraftCount}, failed ${result.failedCount}.`,
     };
   } catch (error) {
     return {

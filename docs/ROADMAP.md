@@ -1,4 +1,4 @@
-# ORKPOD Archive Roadmap (после Phase 17)
+# ORKPOD Archive Roadmap (после Phase 18)
 
 ## Текущее состояние продукта
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
@@ -6,8 +6,9 @@
 3. Auth/admin/community/ingestion flow остаются рабочими без архитектурной перестройки.
 4. Фазы 11-14B по automation (API-backed ingestion, exact tags, runtime parity) сохранены.
 5. Phase 15 завершён: структурирование импортированных описаний + UTF-8 cleanup.
-6. Phase 16 завершён: SEO / performance / indexing foundation (metadata, robots, sitemap, structured data).
-7. Phase 17 завершён: media/detail UX обновлён (embedded player над описанием + collapsible description).
+6. Phase 16 завершён: SEO / performance / indexing foundation.
+7. Phase 17 завершён: embedded player над описанием + collapsible description на detail page.
+8. Phase 18 завершён: cover readiness усилен + добавлен безопасный admin bulk publish для publish-ready материалов.
 
 ## Статус фаз
 1. Phase 01 — выполнено.
@@ -31,21 +32,25 @@
 19. Phase 14B — выполнено.
 20. Phase 15 — выполнено.
 21. Phase 16 — выполнено.
-22. Phase 17 — выполнено (media/detail player + collapsible description).
+22. Phase 17 — выполнено.
+23. Phase 18 — выполнено (cover readiness + bulk publish-ready workflow).
 
-## Что сделано в Phase 17
-1. На detail page добавлен реальный embedded player для поддерживаемых источников (YouTube/Twitch), и он расположен выше описания.
-2. Для неподдерживаемых/непарсируемых ссылок реализован безопасный fallback без поломки страницы:
-   - показывается медиаблок с cover/thumbnail;
-   - сохраняется действие открытия внешнего источника.
-3. Описание вынесено в collapsible/expandable блок:
-   - стартовое состояние свернуто для более чистого первого экрана;
-   - полный текст доступен по раскрытию;
-   - structured imported description из Phase 15 сохранён.
-4. Внешние ссылки, теги, community comments/reactions блок и related-карточки сохранены.
+## Что сделано в Phase 18
+1. Усилен cover path на уровне resolve слоя:
+   - если `cover.kind=image` отсутствует, для YouTube-материалов безопасно достраивается thumbnail из ссылки/ID;
+   - при отсутствии thumbnail сохраняется безопасный gradient fallback.
+2. Введены явные publish-ready правила для bulk publish:
+   - обязательные базовые проверки (draft/status, title, slug, primary link, description/excerpt/body, cover);
+   - для imported добавлены automation safety проверки (confidence/review/publishDecision/metadataReliability).
+3. Добавлен admin bulk publish action:
+   - owner-triggered действие публикует только записи, прошедшие readiness rules;
+   - показывается счётчик eligible/blocked/failed.
+4. Добавлена visibility в `/admin/content`:
+   - фильтр `Publish ready` (all/ready/blocked);
+   - per-item ready/blocked badge + причины блокировки;
+   - operational summary для draft/ready/blocked.
 
 ## Следующие roadmap-блоки
-1. Cover improvements (следующий слой улучшений медиа-представления).
-2. Admin bulk publish для publish-ready элементов.
-3. Comment reputation system.
-4. Большой UI pass, вдохновлённый Pixabay (позже отдельной фазой).
+1. Comment reputation system.
+2. Broader cover/media polish (следующий уровень art-direction вне операционного scope).
+3. Большой UI pass, вдохновлённый Pixabay (позже отдельной фазой).

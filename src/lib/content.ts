@@ -1,4 +1,5 @@
 import { categories as seedCategories, contentItems, platforms as seedPlatforms, seriesList, tags as seedTags } from "@/data";
+import { resolveContentItemCover } from "@/lib/cover";
 import type {
   ArchiveFilters,
   Category,
@@ -100,6 +101,7 @@ export function resolveContentItems(
       importStatus: item.importStatus ?? "not_applicable",
       status: item.status ?? "published",
       moderationStatus,
+      cover: resolveContentItemCover(item),
       createdAt,
       updatedAt,
       publishedAt,
