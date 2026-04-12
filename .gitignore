@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local fallback generated store
+data/local-content-items.json
+data/local-source-channels.json
+data/local-import-runs.json
+data/local-ingestion-locks.json
+data/local-comments.json
+data/local-reactions.json
+data/local-write-rate-limits.json

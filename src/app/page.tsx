@@ -1,65 +1,99 @@
-import Image from "next/image";
+import Link from "next/link";
 
-export default function Home() {
+import { ArchiveCard } from "@/components/archive/archive-card";
+import { CategoryOverview } from "@/components/home/category-overview";
+import { Reveal } from "@/components/motion/reveal";
+import { Container } from "@/components/shared/container";
+import { getHomePageData } from "@/server/services/public-content-service";
+
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const { featuredItems, recentItems, categoryOverview } = await getHomePageData();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <Container className="space-y-14 pb-16">
+      <Reveal>
+        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#0f172a] via-[#0a1020] to-[#0d1024] p-7 sm:p-10">
+          <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+            <div className="space-y-6">
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">
+                ORKPOD MEDIA ARCHIVE
+              </p>
+              <h1 className="font-display text-4xl leading-tight text-zinc-100 sm:text-6xl">
+                Архив стримов и видеозаписей с удобной навигацией по сериям
+              </h1>
+              <p className="max-w-2xl text-base leading-7 text-zinc-300 sm:text-lg">
+                Мы пересобираем контент Orkpod в формат каталога: категории, рубрики,
+                платформы, детальные страницы записей и быстрый переход к просмотру.
+              </p>
+            </div>
+
+            <form
+              action="/streams"
+              method="get"
+              className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-4"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+              <label className="block text-sm text-zinc-300" htmlFor="home-search">
+                Быстрый вход в архив
+              </label>
+              <input
+                id="home-search"
+                name="q"
+                type="search"
+                placeholder="Например: Next.js, интервью, OBS"
+                className="h-12 w-full rounded-xl border border-white/15 bg-black/30 px-4 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
+              />
+              <button
+                type="submit"
+                className="h-11 w-full rounded-xl bg-white text-sm font-semibold text-black transition hover:bg-zinc-200"
+              >
+                Открыть архив
+              </button>
+            </form>
+          </div>
+        </section>
+      </Reveal>
+
+      <Reveal delay={0.05} className="space-y-5">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">Discovery</p>
+            <h2 className="font-display text-3xl text-zinc-100">Основные категории</h2>
+          </div>
+          <Link
+            href="/streams"
+            className="rounded-full border border-white/20 px-4 py-2 text-sm text-zinc-200 transition hover:border-white/35 hover:text-white"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            Весь архив
+          </Link>
         </div>
-      </main>
-    </div>
+        <CategoryOverview blocks={categoryOverview} />
+      </Reveal>
+
+      <Reveal delay={0.08} className="space-y-5">
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">Featured</p>
+          <h2 className="font-display text-3xl text-zinc-100">Рекомендованные записи</h2>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {featuredItems.map((item) => (
+            <ArchiveCard key={item.id} item={item} />
+          ))}
+        </div>
+      </Reveal>
+
+      <Reveal delay={0.12} className="space-y-5">
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">Recent</p>
+          <h2 className="font-display text-3xl text-zinc-100">Последние добавления</h2>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {recentItems.map((item) => (
+            <ArchiveCard key={item.id} item={item} />
+          ))}
+        </div>
+      </Reveal>
+    </Container>
   );
 }
