@@ -52,6 +52,49 @@ const fallbackPalettes: Array<[string, string]> = [
 
 const DEFAULT_IMPORTED_STATUS: ContentStatus = "draft";
 
+type MappingConfidence = "high" | "medium" | "low";
+type MetadataReliability = "high" | "medium" | "low";
+type PublishDecision = "keep_draft" | "review_required" | "auto_publish";
+type AutomationReviewState = "review_needed" | "review_light" | "auto_published";
+
+type AutoMappingResult = {
+  categoryId: string;
+  categorySlug: string;
+  seriesId: string | null;
+  seriesSlug: string | null;
+  tagIds: string[];
+  score: number;
+  confidence: MappingConfidence;
+  metadataReliability: MetadataReliability;
+  needsReview: boolean;
+  fallbackUsed: boolean;
+  reasonCodes: string[];
+  matchedTerms: string[];
+};
+
+type MetadataSignals = {
+  overallReliability: MetadataReliability;
+  missingCriticalFields: string[];
+  reasonCodes: string[];
+};
+
+type AutomationDecision = {
+  publishDecision: PublishDecision;
+  reviewState: AutomationReviewState;
+  targetStatus: ContentStatus;
+  autoPublishEnabled: boolean;
+  autoPublishApplied: boolean;
+  metadataReliability: MetadataReliability;
+  reasonCodes: string[];
+};
+
+type SourceAutomationProfile = {
+  preferredCategorySlug?: string;
+  preferredSeriesSlug?: string;
+  preferredTagSlugs?: string[];
+  keywordBoosts?: string[];
+};
+
 function pickPalette(seed: string): [string, string] {
   const score = seed.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return fallbackPalettes[score % fallbackPalettes.length];
@@ -62,7 +105,7 @@ function ensureValidUrl(value: string) {
     const parsed = new URL(value);
     return parsed.toString();
   } catch {
-    throw new Error("Некорректный внешний URL");
+    throw new Error("Invalid external URL");
   }
 }
 
@@ -95,7 +138,7 @@ function resolveCategoryAndSeries(input: {
 }) {
   const category = categories.find((entry) => entry.slug === input.categorySlug);
   if (!category) {
-    throw new Error("Категория не найдена");
+    throw new Error("Category was not found");
   }
 
   const selectedSeries = input.seriesSlug
@@ -103,10 +146,10 @@ function resolveCategoryAndSeries(input: {
     : null;
 
   if (input.seriesSlug && !selectedSeries) {
-    throw new Error("Серия не найдена");
+    throw new Error("Series was not found");
   }
   if (selectedSeries && selectedSeries.categoryId !== category.id) {
-    throw new Error("Серия не принадлежит выбранной категории");
+    throw new Error("Series does not belong to selected category");
   }
 
   return { category, series: selectedSeries };
@@ -115,7 +158,7 @@ function resolveCategoryAndSeries(input: {
 function resolvePlatformBySlug(platformSlug: string) {
   const platform = platforms.find((entry) => entry.slug === platformSlug);
   if (!platform) {
-    throw new Error("Платформа не найдена");
+    throw new Error("Platform was not found");
   }
 
   return platform;
@@ -123,7 +166,7 @@ function resolvePlatformBySlug(platformSlug: string) {
 
 function updatePrimaryLink(item: ContentItem, url: string): ExternalLink[] {
   const nextLinks = [...item.links];
-  const primaryIndex = nextLinks.findIndex((entry) => entry.label === "Открыть оригинал");
+  const primaryIndex = nextLinks.findIndex((entry) => entry.label === "Open source");
 
   if (primaryIndex >= 0) {
     nextLinks[primaryIndex] = {
@@ -136,7 +179,7 @@ function updatePrimaryLink(item: ContentItem, url: string): ExternalLink[] {
   return [
     {
       kind: item.platformId.includes("youtube") ? "youtube" : "video",
-      label: "Открыть оригинал",
+      label: "Open source",
       url,
     },
     ...nextLinks,
@@ -205,6 +248,476 @@ function chooseDefaultImportedSeriesId(categoryId: string) {
   return seriesList.find((entry) => entry.categoryId === categoryId)?.id ?? null;
 }
 
+function parseMetadataReliability(value: unknown): MetadataReliability | null {
+  if (value === "high" || value === "medium" || value === "low") {
+    return value;
+  }
+  return null;
+}
+
+function isAutoPublishEnabled() {
+  const raw = (process.env.YOUTUBE_INGESTION_ENABLE_AUTOPUBLISH ?? "false")
+    .trim()
+    .toLowerCase();
+  return raw === "true" || raw === "1" || raw === "on";
+}
+
+function readMetadataSignals(video: NormalizedYouTubeVideo): MetadataSignals {
+  const ingestionPayload =
+    video.sourcePayload &&
+    typeof video.sourcePayload === "object" &&
+    typeof (video.sourcePayload as Record<string, unknown>).ingestion === "object"
+      ? ((video.sourcePayload as Record<string, unknown>).ingestion as Record<string, unknown>)
+      : null;
+
+  const qualityPayload =
+    ingestionPayload && typeof ingestionPayload.metadataQuality === "object"
+      ? (ingestionPayload.metadataQuality as Record<string, unknown>)
+      : null;
+
+  const payloadReliability = parseMetadataReliability(qualityPayload?.overallReliability);
+  const payloadMissingFields = Array.isArray(qualityPayload?.missingCriticalFields)
+    ? qualityPayload?.missingCriticalFields.filter(
+        (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+      )
+    : [];
+
+  const fallbackMissingFields = [
+    video.title.trim() ? "" : "title",
+    video.description.trim() ? "" : "description",
+    video.thumbnailUrl ? "" : "thumbnail",
+    video.sourceChannelId ? "" : "channel_id",
+    video.sourceChannelTitle ? "" : "channel_title",
+    video.externalUrl.trim() ? "" : "external_url",
+  ].filter(Boolean);
+
+  const missingCriticalFields =
+    payloadMissingFields.length > 0 ? payloadMissingFields : fallbackMissingFields;
+
+  const overallReliability: MetadataReliability =
+    payloadReliability ??
+    (missingCriticalFields.length === 0
+      ? "medium"
+      : missingCriticalFields.length >= 3
+        ? "low"
+        : "medium");
+
+  const reasonCodes = deduplicateCaseInsensitive([
+    `metadata:overall:${overallReliability}`,
+    ...missingCriticalFields.map((field) => `metadata:missing:${field}`),
+  ]);
+
+  return {
+    overallReliability,
+    missingCriticalFields,
+    reasonCodes,
+  };
+}
+
+const categoryKeywordRules: Array<{ slug: string; keywords: string[] }> = [
+  {
+    slug: "community",
+    keywords: [
+      "q&a",
+      "qna",
+      "community",
+      "question",
+      "discussion",
+      "chat",
+      "сообщество",
+      "комьюнити",
+      "вопрос",
+      "ответ",
+      "дискуссия",
+      "обсуждение",
+    ],
+  },
+  {
+    slug: "practice",
+    keywords: [
+      "live build",
+      "tooling",
+      "lab",
+      "tutorial",
+      "how to",
+      "obs",
+      "practice",
+      "guide",
+      "практика",
+      "инструмент",
+      "гайд",
+      "лаборатория",
+      "сборка",
+      "автоматизация",
+    ],
+  },
+  {
+    slug: "interview",
+    keywords: [
+      "inside stream",
+      "interview",
+      "guest",
+      "conversation",
+      "podcast",
+      "интервью",
+      "гость",
+      "беседа",
+      "разговор",
+      "подкаст",
+    ],
+  },
+  {
+    slug: "analysis",
+    keywords: [
+      "retro air",
+      "archive notes",
+      "analysis",
+      "review",
+      "metrics",
+      "аналитика",
+      "анализ",
+      "разбор",
+      "обзор",
+      "метрики",
+      "архив",
+      "итоги",
+    ],
+  },
+];
+
+const seriesKeywordRules: Array<{ slug: string; keywords: string[] }> = [
+  {
+    slug: "inside-stream",
+    keywords: ["inside stream", "interview", "conversation", "интервью", "беседа"],
+  },
+  {
+    slug: "retro-air",
+    keywords: ["retro air", "retrospective", "review", "ретро", "обзор", "разбор"],
+  },
+  {
+    slug: "live-build",
+    keywords: ["live build", "build", "practice", "сборка", "практика"],
+  },
+  {
+    slug: "qna-room",
+    keywords: ["q&a", "qna", "question", "answers", "community", "вопрос", "ответ"],
+  },
+  {
+    slug: "archive-notes",
+    keywords: ["archive notes", "archive", "notes", "архив", "заметки"],
+  },
+  {
+    slug: "tooling-lab",
+    keywords: ["tooling", "lab", "tool", "obs", "automation", "инструмент", "автоматизация"],
+  },
+];
+
+const tagKeywordRules: Record<string, string[]> = {
+  nextjs: ["next.js", "nextjs", "app router", "next"],
+  streaming: ["stream", "streaming", "broadcast", "стрим", "эфир"],
+  editorial: ["editorial", "editing", "editor", "редактура", "монтаж"],
+  community: ["community", "q&a", "qna", "комьюнити", "сообщество"],
+  ux: ["ux", "ui", "interface", "интерфейс"],
+  analytics: ["analytics", "metrics", "retention", "аналитика", "метрики"],
+  obs: ["obs", "open broadcaster", "обс"],
+  audio: ["audio", "sound", "microphone", "аудио", "звук", "микрофон"],
+  automation: ["automation", "pipeline", "workflow", "автоматизация", "pipeline"],
+  typescript: ["typescript", "type script", "ts"],
+  archive: ["archive", "catalog", "library", "архив", "каталог"],
+  process: ["process", "workflow", "flow", "процесс", "поток"],
+};
+
+const sourceAutomationProfiles: Record<string, SourceAutomationProfile> = {
+  orkcut: {
+    preferredCategorySlug: "practice",
+    preferredSeriesSlug: "tooling-lab",
+    preferredTagSlugs: ["automation", "process", "obs"],
+    keywordBoosts: ["tooling", "pipeline", "workflow", "автоматизация", "практика"],
+  },
+  orkstream: {
+    preferredCategorySlug: "community",
+    preferredSeriesSlug: "qna-room",
+    preferredTagSlugs: ["community", "streaming"],
+    keywordBoosts: ["community", "q&a", "чат", "вопрос"],
+  },
+  "orkpod-youtube": {
+    preferredCategorySlug: "analysis",
+    preferredSeriesSlug: "archive-notes",
+    preferredTagSlugs: ["archive", "analytics"],
+    keywordBoosts: ["archive", "review", "метрики", "анализ"],
+  },
+};
+
+function normalizeForMatch(value: string) {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function deduplicateCaseInsensitive(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const normalized = value.trim();
+    if (!normalized) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+function listKeywordMatches(haystack: string, keywords: string[]) {
+  const normalizedHaystack = normalizeForMatch(haystack);
+  return deduplicateCaseInsensitive(
+    keywords.filter((entry) => normalizedHaystack.includes(normalizeForMatch(entry))),
+  );
+}
+
+function computeKeywordSignal(params: {
+  searchable: string;
+  titleOnly: string;
+  keywords: string[];
+  boost?: number;
+}) {
+  const allMatches = listKeywordMatches(params.searchable, params.keywords);
+  const titleMatches = listKeywordMatches(params.titleOnly, params.keywords);
+  const score = allMatches.length * 2 + titleMatches.length * 3 + (params.boost ?? 0);
+
+  return {
+    score,
+    allMatches,
+    titleMatches,
+  };
+}
+
+function sortAndDeduplicate(values: string[]) {
+  return deduplicateCaseInsensitive(values).sort((a, b) => a.localeCompare(b));
+}
+
+function areSameStringSets(left: string[] | undefined | null, right: string[] | undefined | null) {
+  const a = sortAndDeduplicate(left ?? []);
+  const b = sortAndDeduplicate(right ?? []);
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  return a.every((entry, index) => entry === b[index]);
+}
+
+function buildAutoMappingResult(params: {
+  video: NormalizedYouTubeVideo;
+  source: SourceChannel;
+  defaultCategoryId: string;
+  defaultSeriesId: string | null;
+  metadataSignals?: MetadataSignals;
+}) {
+  const metadataSignals = params.metadataSignals ?? readMetadataSignals(params.video);
+  const sourceProfile = sourceAutomationProfiles[params.source.slug] ?? null;
+  const sourceProfileBoostTerms = sourceProfile?.keywordBoosts ?? [];
+
+  const searchable = [
+    params.video.title,
+    params.video.excerpt,
+    params.video.description,
+    params.video.body,
+    params.video.sourceCategory ?? "",
+    params.video.sourceChannelTitle ?? "",
+    params.source.title,
+    params.source.slug,
+    ...params.video.sourceTags,
+    ...sourceProfileBoostTerms,
+  ].join(" ");
+  const titleOnly = [params.video.title, params.video.sourceCategory ?? ""].join(" ");
+
+  const defaultCategory =
+    categories.find((entry) => entry.id === params.defaultCategoryId) ??
+    categories.find((entry) => entry.slug === "analysis") ??
+    categories[0];
+
+  let selectedCategory = defaultCategory;
+  let selectedCategorySignal = {
+    score: sourceProfile?.preferredCategorySlug === defaultCategory.slug ? 3 : 0,
+    allMatches: [] as string[],
+    titleMatches: [] as string[],
+  };
+
+  for (const rule of categoryKeywordRules) {
+    const category = categories.find((entry) => entry.slug === rule.slug);
+    if (!category) continue;
+
+    const signal = computeKeywordSignal({
+      searchable,
+      titleOnly,
+      keywords: rule.keywords,
+      boost: sourceProfile?.preferredCategorySlug === rule.slug ? 3 : 0,
+    });
+
+    if (
+      signal.score > selectedCategorySignal.score ||
+      (signal.score === selectedCategorySignal.score &&
+        signal.titleMatches.length > selectedCategorySignal.titleMatches.length) ||
+      (signal.score === selectedCategorySignal.score &&
+        signal.titleMatches.length === selectedCategorySignal.titleMatches.length &&
+        rule.slug.localeCompare(selectedCategory.slug) < 0)
+    ) {
+      selectedCategory = category;
+      selectedCategorySignal = signal;
+    }
+  }
+
+  const categorySeries = seriesList.filter((entry) => entry.categoryId === selectedCategory.id);
+  const defaultSeries =
+    categorySeries.find((entry) => entry.id === params.defaultSeriesId) ??
+    categorySeries.find((entry) => entry.slug === "archive-notes") ??
+    categorySeries[0] ??
+    null;
+
+  let selectedSeries = defaultSeries;
+  let selectedSeriesSignal = {
+    score: defaultSeries && sourceProfile?.preferredSeriesSlug === defaultSeries.slug ? 2 : 0,
+    allMatches: [] as string[],
+    titleMatches: [] as string[],
+  };
+
+  for (const rule of seriesKeywordRules) {
+    const series = categorySeries.find((entry) => entry.slug === rule.slug);
+    if (!series) continue;
+
+    const signal = computeKeywordSignal({
+      searchable,
+      titleOnly,
+      keywords: rule.keywords,
+      boost: sourceProfile?.preferredSeriesSlug === rule.slug ? 2 : 0,
+    });
+
+    if (
+      signal.score > selectedSeriesSignal.score ||
+      (signal.score === selectedSeriesSignal.score &&
+        signal.titleMatches.length > selectedSeriesSignal.titleMatches.length) ||
+      (signal.score === selectedSeriesSignal.score &&
+        signal.titleMatches.length === selectedSeriesSignal.titleMatches.length &&
+        rule.slug.localeCompare(selectedSeries?.slug ?? "") < 0)
+    ) {
+      selectedSeries = series;
+      selectedSeriesSignal = signal;
+    }
+  }
+
+  const sourceTagSignals = sortAndDeduplicate(params.video.sourceTags.map((entry) => entry.toLowerCase()));
+  const preferredTagSlugSet = new Set(sourceProfile?.preferredTagSlugs ?? []);
+  const tagCandidateEntries = tags
+    .map((entry) => {
+      const rules = tagKeywordRules[entry.slug] ?? [];
+      const keywordSignal = computeKeywordSignal({
+        searchable,
+        titleOnly,
+        keywords: rules,
+        boost: preferredTagSlugSet.has(entry.slug) ? 1 : 0,
+      });
+
+      const directTagMatch = sourceTagSignals.some(
+        (signal) =>
+          signal.includes(entry.slug.toLowerCase()) ||
+          signal.includes(entry.label.toLowerCase()),
+      );
+      const directScore = directTagMatch ? 3 : 0;
+      const sourceProfileBoost = preferredTagSlugSet.has(entry.slug) ? 2 : 0;
+      const totalScore = keywordSignal.score + directScore + sourceProfileBoost;
+
+      return {
+        id: entry.id,
+        slug: entry.slug,
+        totalScore,
+        keywordMatches: keywordSignal.allMatches,
+        directTagMatch,
+      };
+    })
+    .filter((entry) => entry.totalScore >= 3 || (entry.directTagMatch && entry.totalScore >= 2))
+    .sort((a, b) => {
+      if (b.totalScore !== a.totalScore) {
+        return b.totalScore - a.totalScore;
+      }
+      return a.slug.localeCompare(b.slug);
+    });
+
+  const tagIds = sortAndDeduplicate(tagCandidateEntries.map((entry) => entry.id));
+  const profileFallbackTagIds =
+    tagIds.length === 0
+      ? sortAndDeduplicate(
+          tags
+            .filter((entry) => preferredTagSlugSet.has(entry.slug))
+            .map((entry) => entry.id),
+        )
+      : [];
+  const resolvedTagIds = tagIds.length > 0 ? tagIds : profileFallbackTagIds;
+
+  const mappedTerms = deduplicateCaseInsensitive([
+    ...selectedCategorySignal.allMatches,
+    ...selectedSeriesSignal.allMatches,
+    ...tagCandidateEntries.flatMap((entry) => entry.keywordMatches),
+    ...sourceTagSignals,
+    ...listKeywordMatches(searchable, sourceProfileBoostTerms),
+  ]);
+
+  const score =
+    selectedCategorySignal.score +
+    selectedSeriesSignal.score +
+    (resolvedTagIds.length >= 3 ? 4 : resolvedTagIds.length > 0 ? 2 : 0) +
+    (sourceTagSignals.length >= 2 ? 1 : 0) +
+    (metadataSignals.overallReliability === "high"
+      ? 2
+      : metadataSignals.overallReliability === "medium"
+        ? 1
+        : 0);
+
+  let confidence: MappingConfidence = score >= 12 ? "high" : score >= 7 ? "medium" : "low";
+  if (metadataSignals.overallReliability === "low" && confidence === "high") {
+    confidence = "medium";
+  }
+  if (metadataSignals.overallReliability === "low" && confidence === "medium") {
+    confidence = "low";
+  }
+
+  const fallbackUsed =
+    (selectedCategorySignal.allMatches.length === 0 && !sourceProfile?.preferredCategorySlug) ||
+    (selectedSeriesSignal.allMatches.length === 0 &&
+      !sourceProfile?.preferredSeriesSlug &&
+      Boolean(selectedSeries)) ||
+    resolvedTagIds.length === 0;
+  const needsReview =
+    confidence !== "high" ||
+    fallbackUsed ||
+    metadataSignals.overallReliability !== "high" ||
+    metadataSignals.missingCriticalFields.length > 0;
+
+  return {
+    categoryId: selectedCategory.id,
+    categorySlug: selectedCategory.slug,
+    seriesId: selectedSeries?.id ?? null,
+    seriesSlug: selectedSeries?.slug ?? null,
+    tagIds: resolvedTagIds,
+    score,
+    confidence,
+    metadataReliability: metadataSignals.overallReliability,
+    needsReview,
+    fallbackUsed,
+    reasonCodes: deduplicateCaseInsensitive([
+      `category:${selectedCategory.slug}:score_${selectedCategorySignal.score}`,
+      `series:${selectedSeries?.slug ?? "none"}:score_${selectedSeriesSignal.score}`,
+      `tags:${resolvedTagIds.length}`,
+      `mapping_score:${score}`,
+      `mapping_confidence:${confidence}`,
+      sourceProfile ? `source_profile:${params.source.slug}` : "source_profile:none",
+      `metadata_reliability:${metadataSignals.overallReliability}`,
+      ...metadataSignals.reasonCodes,
+      fallbackUsed ? "fallback:manual_review_recommended" : "fallback:none",
+    ]),
+    matchedTerms: mappedTerms,
+  } satisfies AutoMappingResult;
+}
+
 function deriveThumbnailCover(video: NormalizedYouTubeVideo) {
   if (video.thumbnailUrl) {
     return {
@@ -223,9 +736,16 @@ function deriveThumbnailCover(video: NormalizedYouTubeVideo) {
 }
 
 type ImportSnapshot = {
+  title?: string;
+  slug?: string;
   excerpt?: string;
   description?: string;
   body?: string;
+  categoryId?: string;
+  seriesId?: string | null;
+  tagIds?: string[];
+  publishedAt?: string;
+  primaryUrl?: string;
 };
 
 function readImportSnapshot(item: ContentItem): ImportSnapshot {
@@ -241,15 +761,29 @@ function readImportSnapshot(item: ContentItem): ImportSnapshot {
 
   const raw = snapshot as Record<string, unknown>;
   return {
+    title: typeof raw.title === "string" ? raw.title : undefined,
+    slug: typeof raw.slug === "string" ? raw.slug : undefined,
     excerpt: typeof raw.excerpt === "string" ? raw.excerpt : undefined,
     description: typeof raw.description === "string" ? raw.description : undefined,
     body: typeof raw.body === "string" ? raw.body : undefined,
+    categoryId: typeof raw.categoryId === "string" ? raw.categoryId : undefined,
+    seriesId:
+      typeof raw.seriesId === "string" || raw.seriesId === null
+        ? (raw.seriesId as string | null)
+        : undefined,
+    tagIds: Array.isArray(raw.tagIds)
+      ? raw.tagIds.filter((entry): entry is string => typeof entry === "string")
+      : undefined,
+    publishedAt: typeof raw.publishedAt === "string" ? raw.publishedAt : undefined,
+    primaryUrl: typeof raw.primaryUrl === "string" ? raw.primaryUrl : undefined,
   };
 }
 
-function mergeImportedTextContent(existing: ContentItem, incoming: NormalizedYouTubeVideo) {
-  const snapshot = readImportSnapshot(existing);
-
+function mergeImportedTextContent(
+  existing: ContentItem,
+  incoming: NormalizedYouTubeVideo,
+  snapshot: ImportSnapshot,
+) {
   const canReplaceExcerpt =
     !existing.excerpt || (snapshot.excerpt ? existing.excerpt === snapshot.excerpt : true);
   const canReplaceDescription =
@@ -265,15 +799,141 @@ function mergeImportedTextContent(existing: ContentItem, incoming: NormalizedYou
   };
 }
 
+function canReplaceScalar(
+  currentValue: string | null | undefined,
+  snapshotValue: string | null | undefined,
+) {
+  if (!currentValue) {
+    return true;
+  }
+
+  if (snapshotValue === undefined) {
+    return true;
+  }
+
+  return currentValue === snapshotValue;
+}
+
+function canReplaceTagIds(currentTagIds: string[] | undefined, snapshotTagIds: string[] | undefined) {
+  if (!currentTagIds || currentTagIds.length === 0) {
+    return true;
+  }
+
+  if (!snapshotTagIds) {
+    return true;
+  }
+
+  return areSameStringSets(currentTagIds, snapshotTagIds);
+}
+
+function getPrimaryLinkUrl(item: ContentItem) {
+  return item.links[0]?.url ?? null;
+}
+
+function buildAutomationDecision(params: {
+  mapping: AutoMappingResult;
+  metadataSignals: MetadataSignals;
+  manualOverrideDetected?: boolean;
+  existingStatus?: ContentStatus;
+}): AutomationDecision {
+  const autoPublishEnabled = isAutoPublishEnabled();
+  const manualOverrideDetected = params.manualOverrideDetected === true;
+  const hasCriticalMetadataGap = params.metadataSignals.missingCriticalFields.length > 0;
+
+  const strictAutoPublishReady =
+    params.mapping.confidence === "high" &&
+    !params.mapping.needsReview &&
+    !params.mapping.fallbackUsed &&
+    params.metadataSignals.overallReliability === "high" &&
+    !hasCriticalMetadataGap &&
+    !manualOverrideDetected;
+
+  const highConfidenceReviewLight =
+    params.mapping.confidence === "high" &&
+    !params.mapping.fallbackUsed &&
+    params.metadataSignals.overallReliability !== "low" &&
+    !hasCriticalMetadataGap &&
+    !manualOverrideDetected;
+
+  const baseDecision: Omit<AutomationDecision, "targetStatus"> = strictAutoPublishReady && autoPublishEnabled
+    ? {
+        publishDecision: "auto_publish",
+        reviewState: "auto_published",
+        autoPublishEnabled,
+        autoPublishApplied: true,
+        metadataReliability: params.metadataSignals.overallReliability,
+        reasonCodes: deduplicateCaseInsensitive([
+          "decision:auto_publish",
+          "status:published_by_policy",
+          `mapping_confidence:${params.mapping.confidence}`,
+          `metadata_reliability:${params.metadataSignals.overallReliability}`,
+        ]),
+      }
+    : highConfidenceReviewLight
+      ? {
+          publishDecision: "keep_draft",
+          reviewState: "review_light",
+          autoPublishEnabled,
+          autoPublishApplied: false,
+          metadataReliability: params.metadataSignals.overallReliability,
+          reasonCodes: deduplicateCaseInsensitive([
+            "decision:review_light",
+            autoPublishEnabled ? "autopublish:not_triggered" : "autopublish:disabled_by_env",
+            `mapping_confidence:${params.mapping.confidence}`,
+            `metadata_reliability:${params.metadataSignals.overallReliability}`,
+          ]),
+        }
+      : {
+          publishDecision: "review_required",
+          reviewState: "review_needed",
+          autoPublishEnabled,
+          autoPublishApplied: false,
+          metadataReliability: params.metadataSignals.overallReliability,
+          reasonCodes: deduplicateCaseInsensitive([
+            "decision:review_required",
+            params.mapping.confidence === "low"
+              ? "review_reason:low_mapping_confidence"
+              : "review_reason:mapping_or_metadata_uncertainty",
+            params.mapping.fallbackUsed ? "review_reason:fallback_used" : "",
+            hasCriticalMetadataGap ? "review_reason:missing_critical_metadata" : "",
+            manualOverrideDetected ? "review_reason:manual_override_detected" : "",
+            `mapping_confidence:${params.mapping.confidence}`,
+            `metadata_reliability:${params.metadataSignals.overallReliability}`,
+          ].filter(Boolean)),
+        };
+
+  if (params.existingStatus) {
+    return {
+      ...baseDecision,
+      targetStatus: params.existingStatus,
+      reasonCodes: deduplicateCaseInsensitive([
+        ...baseDecision.reasonCodes,
+        `status:preserved_existing:${params.existingStatus}`,
+      ]),
+    };
+  }
+
+  return {
+    ...baseDecision,
+    targetStatus: baseDecision.autoPublishApplied ? "published" : DEFAULT_IMPORTED_STATUS,
+  };
+}
+
 function buildSourcePayload({
   existing,
   source,
   video,
+  mapping,
+  automationDecision,
+  snapshot,
   syncedAt,
 }: {
   existing?: Record<string, unknown> | null;
   source: SourceChannel;
   video: NormalizedYouTubeVideo;
+  mapping: AutoMappingResult;
+  automationDecision: AutomationDecision;
+  snapshot: ImportSnapshot;
   syncedAt: string;
 }) {
   return {
@@ -283,18 +943,77 @@ function buildSourcePayload({
       sourceSlug: source.slug,
       externalSourceId: video.externalSourceId,
       syncedAt,
+      sourceChannelId: video.sourceChannelId,
+      sourceChannelTitle: video.sourceChannelTitle,
+      sourceCategory: video.sourceCategory,
+      sourceTags: video.sourceTags,
+      mappingConfidence: mapping.confidence,
+      mappingNeedsReview: mapping.needsReview,
+      mappingFallbackUsed: mapping.fallbackUsed,
+      mappingScore: mapping.score,
+      metadataReliability: mapping.metadataReliability,
+      publishDecision: automationDecision.publishDecision,
+      reviewState: automationDecision.reviewState,
       ...(video.sourcePayload.ingestion && typeof video.sourcePayload.ingestion === "object"
         ? (video.sourcePayload.ingestion as Record<string, unknown>)
         : {}),
     },
+    mapping: {
+      categoryId: mapping.categoryId,
+      categorySlug: mapping.categorySlug,
+      seriesId: mapping.seriesId,
+      seriesSlug: mapping.seriesSlug,
+      tagIds: mapping.tagIds,
+      score: mapping.score,
+      confidence: mapping.confidence,
+      metadataReliability: mapping.metadataReliability,
+      needsReview: mapping.needsReview,
+      fallbackUsed: mapping.fallbackUsed,
+      reasonCodes: mapping.reasonCodes,
+      matchedTerms: mapping.matchedTerms,
+    },
+    automation: {
+      publishDecision: automationDecision.publishDecision,
+      reviewState: automationDecision.reviewState,
+      targetStatus: automationDecision.targetStatus,
+      autoPublishEnabled: automationDecision.autoPublishEnabled,
+      autoPublishApplied: automationDecision.autoPublishApplied,
+      metadataReliability: automationDecision.metadataReliability,
+      reasonCodes: automationDecision.reasonCodes,
+      decidedAt: syncedAt,
+    },
     ingestionSnapshot: {
-      excerpt: video.excerpt,
-      description: video.description,
-      body: video.body,
+      ...snapshot,
       syncedAt,
     },
     raw: (video.sourcePayload.raw as Record<string, unknown> | undefined) ?? null,
   };
+}
+
+function buildIngestionSnapshot(params: {
+  title: string;
+  slug: string;
+  excerpt: string;
+  description: string;
+  body?: string;
+  categoryId?: string;
+  seriesId?: string | null;
+  tagIds?: string[];
+  publishedAt?: string;
+  primaryUrl?: string;
+}) {
+  return {
+    title: params.title,
+    slug: params.slug,
+    excerpt: params.excerpt,
+    description: params.description,
+    body: params.body,
+    categoryId: params.categoryId,
+    seriesId: params.seriesId ?? null,
+    tagIds: params.tagIds ?? [],
+    publishedAt: params.publishedAt,
+    primaryUrl: params.primaryUrl,
+  } satisfies ImportSnapshot;
 }
 
 function summarizeRunStatus({
@@ -336,7 +1055,7 @@ function normalizeCommentBody(value: string) {
 function validateCommentInput(input: CreateCommentInput) {
   const authorDisplay = input.authorDisplay.trim();
   if (authorDisplay.length < 2 || authorDisplay.length > 48) {
-    throw new Error("Имя автора должно быть длиной от 2 до 48 символов.");
+    throw new Error("Author name must be between 2 and 48 characters.");
   }
 
   if (!input.authorFingerprint.trim()) {
@@ -345,12 +1064,12 @@ function validateCommentInput(input: CreateCommentInput) {
 
   const normalizedBody = normalizeCommentBody(input.body);
   if (normalizedBody.length < 3 || normalizedBody.length > 1200) {
-    throw new Error("Комментарий должен быть длиной от 3 до 1200 символов.");
+    throw new Error("Comment must be between 3 and 1200 characters.");
   }
 
   const linksCount = (normalizedBody.match(/https?:\/\/\S+/gi) ?? []).length;
   if (linksCount > 2) {
-    throw new Error("Слишком много ссылок в комментарии. Допустимо не более 2.");
+    throw new Error("Too many links in comment. Max allowed: 2.");
   }
 
   return {
@@ -395,7 +1114,7 @@ export class SeedContentRepository implements ContentRepository {
     const existing = await readLocalFallbackContentItems();
 
     if (existing.some((item) => item.slug === input.slug)) {
-      throw new Error("Слаг уже существует");
+      throw new Error("Slug already exists");
     }
 
     const { category, series } = resolveCategoryAndSeries({
@@ -439,7 +1158,7 @@ export class SeedContentRepository implements ContentRepository {
       links: [
         {
           kind: platform.slug === "youtube" ? "youtube" : "video",
-          label: "Открыть оригинал",
+          label: "Open source",
           url: ensureValidUrl(input.externalUrl),
         },
       ],
@@ -461,14 +1180,14 @@ export class SeedContentRepository implements ContentRepository {
     const index = existing.findIndex((item) => item.id === input.id);
 
     if (index < 0) {
-      throw new Error("Запись не найдена");
+      throw new Error("Content item was not found");
     }
 
     const duplicateSlug = existing.find(
       (item) => item.slug === input.slug && item.id !== input.id,
     );
     if (duplicateSlug) {
-      throw new Error("Слаг уже используется другой записью");
+      throw new Error("Slug is already used by another item");
     }
 
     const { category, series } = resolveCategoryAndSeries({
@@ -514,7 +1233,7 @@ export class SeedContentRepository implements ContentRepository {
     const index = existing.findIndex((item) => item.id === id);
 
     if (index < 0) {
-      throw new Error("Запись не найдена");
+      throw new Error("Content item was not found");
     }
 
     const now = new Date().toISOString();
@@ -565,7 +1284,7 @@ export class SeedContentRepository implements ContentRepository {
     const now = new Date().toISOString();
 
     if (existing.some((channel) => channel.slug === input.slug)) {
-      throw new Error("Канал с таким slug уже существует");
+      throw new Error("Source channel slug already exists");
     }
 
     const platform = resolvePlatformBySlug(input.platformSlug);
@@ -573,7 +1292,7 @@ export class SeedContentRepository implements ContentRepository {
     const sourceUrl = input.sourceUrl?.trim() ? ensureValidUrl(input.sourceUrl) : null;
     const externalChannelId = input.externalChannelId?.trim() || null;
     if (!sourceUrl && !externalChannelId) {
-      throw new Error("Укажите URL канала или внешний channel id");
+      throw new Error("Provide source URL or external channel id");
     }
 
     const channel: SourceChannel = {
@@ -616,7 +1335,7 @@ export class SeedContentRepository implements ContentRepository {
     const sourceIndex = sourceChannels.findIndex((channel) => channel.id === sourceId);
 
     if (sourceIndex < 0) {
-      throw new Error("Источник не найден");
+      throw new Error("Source channel was not found");
     }
 
     const source = sourceChannels[sourceIndex];
@@ -655,7 +1374,7 @@ export class SeedContentRepository implements ContentRepository {
     try {
       const sourcePlatform = platforms.find((entry) => entry.id === source.platformId);
       if (!sourcePlatform || sourcePlatform.slug !== "youtube") {
-        throw new Error("Ингест поддерживается только для YouTube source channels.");
+        throw new Error("Ingestion is supported only for YouTube source channels.");
       }
 
       const { resolved, videos } = await fetchYouTubeChannelVideos(source);
@@ -667,6 +1386,14 @@ export class SeedContentRepository implements ContentRepository {
 
       for (const video of videos) {
         try {
+          const metadataSignals = readMetadataSignals(video);
+          const mapping = buildAutoMappingResult({
+            video,
+            source,
+            defaultCategoryId,
+            defaultSeriesId,
+            metadataSignals,
+          });
           const existingIndex = allItems.findIndex(
             (item) =>
               item.sourceType === "imported" && item.externalSourceId === video.externalSourceId,
@@ -675,6 +1402,24 @@ export class SeedContentRepository implements ContentRepository {
           if (existingIndex < 0) {
             const itemId = `import-${randomUUID()}`;
             const slug = ensureUniqueSlug(allItems, video.slug);
+            const primaryUrl = ensureValidUrl(video.externalUrl);
+            const publishedAt = toIso(video.publishedAt);
+            const automationDecision = buildAutomationDecision({
+              mapping,
+              metadataSignals,
+            });
+            const snapshot = buildIngestionSnapshot({
+              title: video.title,
+              slug,
+              excerpt: video.excerpt,
+              description: video.description,
+              body: video.body,
+              categoryId: mapping.categoryId,
+              seriesId: mapping.seriesId,
+              tagIds: mapping.tagIds,
+              publishedAt,
+              primaryUrl,
+            });
             const importedItem: ContentItem = {
               id: itemId,
               slug,
@@ -682,17 +1427,17 @@ export class SeedContentRepository implements ContentRepository {
               excerpt: video.excerpt,
               description: video.description,
               body: video.body,
-              categoryId: defaultCategoryId,
-              seriesId: defaultSeriesId,
+              categoryId: mapping.categoryId,
+              seriesId: mapping.seriesId,
               platformId: source.platformId,
               sourceType: "imported",
               contentSourceId: `source-${itemId}`,
               externalSourceId: video.externalSourceId,
               importStatus: "imported",
-              status: DEFAULT_IMPORTED_STATUS,
+              status: automationDecision.targetStatus,
               moderationStatus: "clean",
-              tagIds: [],
-              publishedAt: toIso(video.publishedAt),
+              tagIds: mapping.tagIds,
+              publishedAt,
               createdAt: now,
               updatedAt: now,
               durationMinutes: 0,
@@ -700,13 +1445,16 @@ export class SeedContentRepository implements ContentRepository {
               links: [
                 {
                   kind: "youtube",
-                  label: "Открыть оригинал",
-                  url: ensureValidUrl(video.externalUrl),
+                  label: "Open source",
+                  url: primaryUrl,
                 },
               ],
               sourcePayload: buildSourcePayload({
                 source,
                 video,
+                mapping,
+                automationDecision,
+                snapshot,
                 syncedAt: now,
               }),
               featured: false,
@@ -718,26 +1466,138 @@ export class SeedContentRepository implements ContentRepository {
               externalSourceId: video.externalSourceId,
               status: "created",
               contentItemId: importedItem.id,
+              mappingConfidence: mapping.confidence,
+              automationReviewState: automationDecision.reviewState,
+              automationPublishDecision: automationDecision.publishDecision,
             });
             continue;
           }
 
           const existing = allItems[existingIndex];
-          const mergedText = mergeImportedTextContent(existing, video);
-          const nextSlug = ensureUniqueSlug(allItems, video.slug, existing.id);
-          const nextPrimaryUrl = ensureValidUrl(video.externalUrl);
+          const snapshot = readImportSnapshot(existing);
+          const mergedText = mergeImportedTextContent(existing, video, snapshot);
+          const suggestedSlug = ensureUniqueSlug(allItems, video.slug, existing.id);
+          const nextPrimaryUrlCandidate = ensureValidUrl(video.externalUrl);
+          const nextPublishedAtCandidate = toIso(video.publishedAt);
+          const previousPrimaryUrl = getPrimaryLinkUrl(existing);
+          const canReplaceTitle = canReplaceScalar(existing.title, snapshot.title);
+          const canReplaceSlug = canReplaceScalar(existing.slug, snapshot.slug);
+          const canReplacePublishedAt = canReplaceScalar(existing.publishedAt, snapshot.publishedAt);
+          const canReplacePrimaryUrl = canReplaceScalar(previousPrimaryUrl, snapshot.primaryUrl);
+          const canReplaceCategory = canReplaceScalar(existing.categoryId, snapshot.categoryId);
+          const canReplaceSeries = canReplaceScalar(existing.seriesId ?? null, snapshot.seriesId);
+          const canReplaceTags = canReplaceTagIds(existing.tagIds, snapshot.tagIds);
 
-          const previousPrimaryLink =
-            existing.links.find((link) => link.label === "Открыть оригинал") ?? existing.links[0];
+          const nextTitle = canReplaceTitle ? video.title : existing.title;
+          const nextSlug = canReplaceSlug ? suggestedSlug : existing.slug;
+          const nextPublishedAt = canReplacePublishedAt
+            ? nextPublishedAtCandidate
+            : existing.publishedAt ?? nextPublishedAtCandidate;
+          const nextCategoryId = canReplaceCategory
+            ? mapping.categoryId
+            : existing.categoryId ?? mapping.categoryId;
+          const nextSeriesId = canReplaceSeries
+            ? mapping.seriesId
+            : existing.seriesId ?? mapping.seriesId;
+          const nextTagIds = canReplaceTags ? mapping.tagIds : existing.tagIds;
+          const nextPrimaryUrl = canReplacePrimaryUrl
+            ? nextPrimaryUrlCandidate
+            : previousPrimaryUrl ?? nextPrimaryUrlCandidate;
+          const manualOverrideDetected =
+            !canReplaceCategory ||
+            !canReplaceSeries ||
+            !canReplaceTags ||
+            !canReplaceTitle ||
+            !canReplaceSlug;
+          const nextMapping = {
+            ...mapping,
+            categoryId: nextCategoryId,
+            seriesId: nextSeriesId,
+            tagIds: nextTagIds,
+            needsReview:
+              mapping.needsReview ||
+              manualOverrideDetected,
+            reasonCodes: deduplicateCaseInsensitive(
+              [
+                ...mapping.reasonCodes,
+                !canReplaceCategory ? "manual_override:category_preserved" : "",
+                !canReplaceSeries ? "manual_override:series_preserved" : "",
+                !canReplaceTags ? "manual_override:tags_preserved" : "",
+                !canReplaceTitle ? "manual_override:title_preserved" : "",
+                !canReplaceSlug ? "manual_override:slug_preserved" : "",
+              ].filter(Boolean),
+            ),
+          } satisfies AutoMappingResult;
+          const nextAutomationDecision = buildAutomationDecision({
+            mapping: nextMapping,
+            metadataSignals,
+            manualOverrideDetected,
+            existingStatus: existing.status ?? DEFAULT_IMPORTED_STATUS,
+          });
+
+          const updateSnapshot = buildIngestionSnapshot({
+            title: nextTitle,
+            slug: nextSlug,
+            excerpt: mergedText.excerpt,
+            description: mergedText.description,
+            body: mergedText.body,
+            categoryId: nextCategoryId,
+            seriesId: nextSeriesId,
+            tagIds: nextTagIds,
+            publishedAt: nextPublishedAt,
+            primaryUrl: nextPrimaryUrl,
+          });
+
+          const nextSourcePayload = buildSourcePayload({
+            existing: existing.sourcePayload ?? null,
+            source,
+            video,
+            mapping: nextMapping,
+            automationDecision: nextAutomationDecision,
+            snapshot: updateSnapshot,
+            syncedAt: now,
+          });
+          const existingPayloadRecord =
+            existing.sourcePayload && typeof existing.sourcePayload === "object"
+              ? (existing.sourcePayload as Record<string, unknown>)
+              : null;
+          const mappingChanged =
+            JSON.stringify(existingPayloadRecord?.mapping ?? null) !==
+            JSON.stringify((nextSourcePayload as Record<string, unknown>).mapping ?? null);
+          const existingAutomationComparable =
+            existingPayloadRecord?.automation && typeof existingPayloadRecord.automation === "object"
+              ? ({
+                  ...(existingPayloadRecord.automation as Record<string, unknown>),
+                  decidedAt: null,
+                } satisfies Record<string, unknown>)
+              : null;
+          const nextAutomationComparable =
+            (nextSourcePayload as Record<string, unknown>).automation &&
+            typeof (nextSourcePayload as Record<string, unknown>).automation === "object"
+              ? ({
+                  ...((nextSourcePayload as Record<string, unknown>).automation as Record<string, unknown>),
+                  decidedAt: null,
+                } satisfies Record<string, unknown>)
+              : null;
+          const automationChanged =
+            JSON.stringify(existingAutomationComparable) !==
+            JSON.stringify(nextAutomationComparable);
+
           const shouldUpdate =
-            existing.title !== video.title ||
+            existing.title !== nextTitle ||
             existing.slug !== nextSlug ||
-            existing.publishedAt !== toIso(video.publishedAt) ||
+            existing.publishedAt !== nextPublishedAt ||
             mergedText.excerpt !== existing.excerpt ||
             mergedText.description !== existing.description ||
             mergedText.body !== existing.body ||
-            previousPrimaryLink?.url !== nextPrimaryUrl ||
-            existing.importStatus !== "imported";
+            previousPrimaryUrl !== nextPrimaryUrl ||
+            existing.importStatus !== "imported" ||
+            existing.categoryId !== nextCategoryId ||
+            (existing.seriesId ?? null) !== (nextSeriesId ?? null) ||
+            !areSameStringSets(existing.tagIds, nextTagIds) ||
+            existing.platformId !== source.platformId ||
+            mappingChanged ||
+            automationChanged;
 
           if (!shouldUpdate) {
             run.skippedCount += 1;
@@ -751,24 +1611,23 @@ export class SeedContentRepository implements ContentRepository {
 
           const updatedItem: ContentItem = {
             ...existing,
-            title: video.title,
+            title: nextTitle,
             slug: nextSlug,
             excerpt: mergedText.excerpt,
             description: mergedText.description,
             body: mergedText.body,
+            categoryId: nextCategoryId,
+            seriesId: nextSeriesId,
+            tagIds: nextTagIds,
             platformId: source.platformId,
             sourceType: "imported",
             importStatus: "imported",
-            publishedAt: toIso(video.publishedAt),
+            status: nextAutomationDecision.targetStatus,
+            publishedAt: nextPublishedAt,
             updatedAt: now,
             cover: deriveThumbnailCover(video),
             links: updatePrimaryLink(existing, nextPrimaryUrl),
-            sourcePayload: buildSourcePayload({
-              existing: existing.sourcePayload ?? null,
-              source,
-              video,
-              syncedAt: now,
-            }),
+            sourcePayload: nextSourcePayload,
           };
 
           allItems[existingIndex] = updatedItem;
@@ -777,6 +1636,9 @@ export class SeedContentRepository implements ContentRepository {
             externalSourceId: video.externalSourceId,
             status: "updated",
             contentItemId: updatedItem.id,
+            mappingConfidence: nextMapping.confidence,
+            automationReviewState: nextAutomationDecision.reviewState,
+            automationPublishDecision: nextAutomationDecision.publishDecision,
           });
         } catch (error) {
           run.failedCount += 1;
@@ -904,7 +1766,7 @@ export class SeedContentRepository implements ContentRepository {
     const items = await readLocalFallbackContentItems();
     const targetItem = items.find((item) => item.id === input.contentItemId);
     if (!targetItem) {
-      throw new Error("Контент для комментария не найден.");
+      throw new Error("Content item for comment was not found.");
     }
 
     const parsed = validateCommentInput(input);
@@ -919,7 +1781,7 @@ export class SeedContentRepository implements ContentRepository {
     );
 
     if (recentComment) {
-      throw new Error("Слишком частая отправка. Подождите несколько секунд.");
+      throw new Error("Too many requests. Wait a few seconds and retry.");
     }
 
     const comment: CommentRecord = {
@@ -933,7 +1795,7 @@ export class SeedContentRepository implements ContentRepository {
       body: parsed.body,
       status: "pending",
       moderationStatus: "pending_review",
-      moderationReason: "Ожидает первичной модерации.",
+      moderationReason: "Awaiting initial moderation review.",
       createdAt: now,
       updatedAt: now,
     };
@@ -946,7 +1808,7 @@ export class SeedContentRepository implements ContentRepository {
     const comments = await readLocalFallbackComments();
     const index = comments.findIndex((comment) => comment.id === input.commentId);
     if (index < 0) {
-      throw new Error("Комментарий не найден.");
+      throw new Error("Comment was not found.");
     }
 
     const now = new Date().toISOString();
@@ -1065,3 +1927,4 @@ export class SeedContentRepository implements ContentRepository {
     };
   }
 }
+

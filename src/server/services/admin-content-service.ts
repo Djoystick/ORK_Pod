@@ -23,7 +23,45 @@ type AdminContentFilterInput = {
   sourceType?: string;
   platform?: string;
   category?: string;
+  review?: string;
 };
+
+type AutomationReviewState = "review_needed" | "review_light" | "auto_published";
+
+function readAutomationReviewState(item: ResolvedContentItem): AutomationReviewState | null {
+  const payload = item.sourcePayload;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const payloadRecord = payload as Record<string, unknown>;
+  const automation =
+    payloadRecord.automation && typeof payloadRecord.automation === "object"
+      ? (payloadRecord.automation as Record<string, unknown>)
+      : null;
+  if (
+    automation?.reviewState === "review_needed" ||
+    automation?.reviewState === "review_light" ||
+    automation?.reviewState === "auto_published"
+  ) {
+    return automation.reviewState;
+  }
+
+  const mapping =
+    payloadRecord.mapping && typeof payloadRecord.mapping === "object"
+      ? (payloadRecord.mapping as Record<string, unknown>)
+      : null;
+
+  if (mapping?.needsReview === true || mapping?.needsReview === undefined) {
+    return item.sourceType === "imported" ? "review_needed" : null;
+  }
+
+  if (item.sourceType === "imported") {
+    return "review_light";
+  }
+
+  return null;
+}
 
 function parseStatus(value: string): ContentStatus {
   if (value === "draft" || value === "archived") {
@@ -118,9 +156,17 @@ function applyAdminContentFilters(
       !filters.platform || filters.platform === "all" || item.platform.slug === filters.platform;
     const matchesCategory =
       !filters.category || filters.category === "all" || item.category.slug === filters.category;
+    const reviewFilter = filters.review ?? "all";
+    const reviewState = readAutomationReviewState(item);
+    const matchesReview =
+      reviewFilter === "all" ||
+      (reviewFilter === "review_needed" && reviewState === "review_needed") ||
+      (reviewFilter === "review_light" && reviewState === "review_light") ||
+      (reviewFilter === "auto_published" && reviewState === "auto_published") ||
+      (reviewFilter === "no_signals" && reviewState === null);
 
     if (!q) {
-      return matchesStatus && matchesSourceType && matchesPlatform && matchesCategory;
+      return matchesStatus && matchesSourceType && matchesPlatform && matchesCategory && matchesReview;
     }
 
     const searchable = [
@@ -142,6 +188,7 @@ function applyAdminContentFilters(
       matchesSourceType &&
       matchesPlatform &&
       matchesCategory &&
+      matchesReview &&
       searchable.includes(q)
     );
   });
@@ -231,6 +278,7 @@ export async function getAdminContentListData(
         sourceType: filters.sourceType ?? "all",
         platform: filters.platform ?? "all",
         category: filters.category ?? "all",
+        review: filters.review ?? "all",
       },
       items: [],
       taxonomy: await repository.listTaxonomy(),
@@ -248,6 +296,7 @@ export async function getAdminContentListData(
     sourceType: filters.sourceType ?? "all",
     platform: filters.platform ?? "all",
     category: filters.category ?? "all",
+    review: filters.review ?? "all",
   };
 
   return {

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
@@ -27,6 +27,92 @@ type EditContentFormProps = {
   initialExternalUrl: string;
 };
 
+type MappingPreview = {
+  confidence: "high" | "medium" | "low";
+  needsReview: boolean;
+  fallbackUsed: boolean;
+  score: number | null;
+  metadataReliability: "high" | "medium" | "low" | null;
+  reviewState: "review_needed" | "review_light" | "auto_published";
+  publishDecision: "keep_draft" | "review_required" | "auto_publish";
+  reasonCodes: string[];
+  automationReasonCodes: string[];
+  matchedTerms: string[];
+  categorySlug: string | null;
+  seriesSlug: string | null;
+  tagCount: number;
+};
+
+function extractMappingPreview(payload: Record<string, unknown> | null | undefined) {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const candidate = payload.mapping;
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const mapping = candidate as Record<string, unknown>;
+  if (
+    mapping.confidence !== "high" &&
+    mapping.confidence !== "medium" &&
+    mapping.confidence !== "low"
+  ) {
+    return null;
+  }
+
+  const automation =
+    payload.automation && typeof payload.automation === "object"
+      ? (payload.automation as Record<string, unknown>)
+      : null;
+  const reviewState =
+    automation?.reviewState === "review_needed" ||
+    automation?.reviewState === "review_light" ||
+    automation?.reviewState === "auto_published"
+      ? automation.reviewState
+      : mapping.needsReview !== false
+        ? "review_needed"
+        : "review_light";
+  const publishDecision =
+    automation?.publishDecision === "keep_draft" ||
+    automation?.publishDecision === "review_required" ||
+    automation?.publishDecision === "auto_publish"
+      ? automation.publishDecision
+      : mapping.needsReview !== false
+        ? "review_required"
+        : "keep_draft";
+
+  return {
+    confidence: mapping.confidence,
+    needsReview: mapping.needsReview !== false,
+    fallbackUsed: mapping.fallbackUsed !== false,
+    score: typeof mapping.score === "number" ? mapping.score : null,
+    metadataReliability:
+      mapping.metadataReliability === "high" ||
+      mapping.metadataReliability === "medium" ||
+      mapping.metadataReliability === "low"
+        ? mapping.metadataReliability
+        : null,
+    reviewState,
+    publishDecision,
+    reasonCodes: Array.isArray(mapping.reasonCodes)
+      ? mapping.reasonCodes.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    automationReasonCodes: Array.isArray(automation?.reasonCodes)
+      ? automation.reasonCodes.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    matchedTerms: Array.isArray(mapping.matchedTerms)
+      ? mapping.matchedTerms.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    categorySlug: typeof mapping.categorySlug === "string" ? mapping.categorySlug : null,
+    seriesSlug: typeof mapping.seriesSlug === "string" ? mapping.seriesSlug : null,
+    tagCount: Array.isArray(mapping.tagIds)
+      ? mapping.tagIds.filter((entry) => typeof entry === "string").length
+      : 0,
+  } satisfies MappingPreview;
+}
+
 export function EditContentForm({
   gate,
   item,
@@ -53,6 +139,10 @@ export function EditContentForm({
       }),
     [series, categories, selectedCategory],
   );
+  const mappingPreview = useMemo(
+    () => extractMappingPreview(item.sourcePayload ?? null),
+    [item.sourcePayload],
+  );
 
   const isDisabled = !gate.canAccessAdmin;
 
@@ -65,7 +155,7 @@ export function EditContentForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm text-zinc-300">
-            Заголовок *
+            Р—Р°РіРѕР»РѕРІРѕРє *
             <input
               required
               name="title"
@@ -125,7 +215,7 @@ export function EditContentForm({
 
         <div className="grid gap-4 md:grid-cols-3">
           <label className="grid gap-2 text-sm text-zinc-300">
-            Категория *
+            РљР°С‚РµРіРѕСЂРёСЏ *
             <select
               required
               name="category"
@@ -142,13 +232,13 @@ export function EditContentForm({
           </label>
 
           <label className="grid gap-2 text-sm text-zinc-300">
-            Серия
+            РЎРµСЂРёСЏ
             <select
               name="series"
               defaultValue={item.series?.slug ?? ""}
               className="h-11 rounded-xl border border-white/15 bg-black/30 px-3 text-zinc-100 outline-none transition focus:border-cyan-300/70"
             >
-              <option value="">Без серии</option>
+              <option value="">Р‘РµР· СЃРµСЂРёРё</option>
               {visibleSeries.map((entry) => (
                 <option key={entry.id} value={entry.slug}>
                   {entry.title}
@@ -158,7 +248,7 @@ export function EditContentForm({
           </label>
 
           <label className="grid gap-2 text-sm text-zinc-300">
-            Платформа *
+            РџР»Р°С‚С„РѕСЂРјР° *
             <select
               required
               name="platform"
@@ -186,7 +276,7 @@ export function EditContentForm({
           </label>
 
           <label className="grid gap-2 text-sm text-zinc-300">
-            Дата публикации
+            Р”Р°С‚Р° РїСѓР±Р»РёРєР°С†РёРё
             <input
               name="publishedAt"
               type="date"
@@ -196,7 +286,7 @@ export function EditContentForm({
           </label>
 
           <label className="grid gap-2 text-sm text-zinc-300">
-            Статус
+            РЎС‚Р°С‚СѓСЃ
             <select
               name="status"
               defaultValue={item.status ?? "draft"}
@@ -218,9 +308,66 @@ export function EditContentForm({
           />
         </label>
 
+        {item.sourceType === "imported" ? (
+          <div className="rounded-xl border border-white/10 bg-black/30 p-4 text-xs text-zinc-300">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">
+              Ingestion Auto-mapping
+            </p>
+            {mappingPreview ? (
+              <div className="mt-2 space-y-1.5">
+                <p>
+                  confidence:{" "}
+                  <span className="font-semibold text-zinc-100">{mappingPreview.confidence}</span>
+                  {mappingPreview.needsReview ? " · review required" : ""}
+                  {mappingPreview.score !== null ? ` · score ${mappingPreview.score}` : ""}
+                </p>
+                <p>
+                  review/publish:{" "}
+                  <span className="text-zinc-100">
+                    {mappingPreview.reviewState} · {mappingPreview.publishDecision}
+                  </span>
+                  {mappingPreview.metadataReliability
+                    ? ` · metadata ${mappingPreview.metadataReliability}`
+                    : ""}
+                </p>
+                <p>
+                  category/series:{" "}
+                  <span className="text-zinc-100">
+                    {mappingPreview.categorySlug ?? "?"}
+                    {mappingPreview.seriesSlug ? ` / ${mappingPreview.seriesSlug}` : ""}
+                  </span>
+                </p>
+                <p>
+                  tags mapped: <span className="text-zinc-100">{mappingPreview.tagCount}</span>
+                  {mappingPreview.fallbackUsed ? " · fallback used" : ""}
+                </p>
+                {mappingPreview.matchedTerms.length > 0 ? (
+                  <p className="line-clamp-2 text-zinc-400">
+                    matched: {mappingPreview.matchedTerms.slice(0, 10).join(", ")}
+                  </p>
+                ) : null}
+                {mappingPreview.reasonCodes.length > 0 ? (
+                  <p className="line-clamp-2 text-zinc-500">
+                    mapping reasons: {mappingPreview.reasonCodes.slice(0, 8).join(", ")}
+                  </p>
+                ) : null}
+                {mappingPreview.automationReasonCodes.length > 0 ? (
+                  <p className="line-clamp-2 text-zinc-500">
+                    decision reasons: {mappingPreview.automationReasonCodes.slice(0, 8).join(", ")}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-2 text-zinc-400">
+                Auto-mapping metadata not found for this imported item.
+              </p>
+            )}
+          </div>
+        ) : null}
+
         {gate.requiresKeyForWrites ? (
           <label className="grid gap-2 text-sm text-zinc-300">
-            Bootstrap ключ *
+            Bootstrap РєР»СЋС‡ *
             <input
               required
               name="bootstrapKey"
@@ -243,7 +390,7 @@ export function EditContentForm({
               <span>
                 {" "}
                 <Link href={`/streams/${updateState.slug}`} className="underline underline-offset-2">
-                  Открыть публичную страницу
+                  РћС‚РєСЂС‹С‚СЊ РїСѓР±Р»РёС‡РЅСѓСЋ СЃС‚СЂР°РЅРёС†Сѓ
                 </Link>
               </span>
             ) : null}
@@ -255,7 +402,7 @@ export function EditContentForm({
           disabled={isDisabled || isUpdatePending}
           className="h-11 rounded-xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isUpdatePending ? "Сохранение..." : "Сохранить изменения"}
+          {isUpdatePending ? "РЎРѕС…СЂР°РЅРµРЅРёРµ..." : "РЎРѕС…СЂР°РЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ"}
         </button>
       </form>
 
@@ -263,7 +410,7 @@ export function EditContentForm({
         <input type="hidden" name="id" value={item.id} />
         {gate.requiresKeyForWrites ? (
           <label className="mb-3 grid gap-2 text-sm text-zinc-300">
-            Bootstrap ключ *
+            Bootstrap РєР»СЋС‡ *
             <input
               required
               name="bootstrapKey"
@@ -318,3 +465,4 @@ export function EditContentForm({
     </section>
   );
 }
+

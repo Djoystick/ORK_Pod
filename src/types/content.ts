@@ -217,6 +217,9 @@ export interface ImportRunItemResult {
   status: ImportItemResultStatus;
   contentItemId?: string;
   message?: string;
+  mappingConfidence?: "high" | "medium" | "low";
+  automationReviewState?: "review_needed" | "review_light" | "auto_published";
+  automationPublishDecision?: "keep_draft" | "review_required" | "auto_publish";
 }
 
 export interface ImportRun {

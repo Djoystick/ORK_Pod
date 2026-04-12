@@ -1,4 +1,4 @@
-﻿# ORKPOD Archive Roadmap (после Phase 09A)
+# ORKPOD Archive Roadmap (после Phase 11)
 
 ## Текущее состояние
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
@@ -104,4 +104,77 @@
 1. Вернуться к следующему roadmap-приоритету после визуального прохода:
    - эксплуатационное улучшение ingestion/automation или
    - deployment/runtime hardening, в зависимости от текущего операционного риска.
+
+## Что завершено в Phase 11
+1. Усилен ingestion pipeline для YouTube:
+   - сохранен текущий feed-подход (videos.xml),
+   - добавлен дополнительный watch-page enrichment (best effort) для метаданных.
+2. Расширен набор импортируемых source-полей:
+   - title, description/body, excerpt,
+   - thumbnail,
+   - publishedAt,
+   - sourceTags, sourceCategory,
+   - sourceChannelId, sourceChannelTitle,
+   - enriched ingestion payload с диагностикой источников metadata.
+3. Реализован deterministic auto-mapping в fallback ingestion:
+   - category rules,
+   - series rules,
+   - tag rules,
+   - confidence (high|medium|low) и needsReview.
+4. Усилен safe update-path для imported items:
+   - snapshot-based защита от перезаписи ручных правок (title/slug/text/category/series/tags/publishedAt/link),
+   - повторные sync-прогоны остаются dedupe-safe.
+5. Добавлена admin-видимость auto-mapping:
+   - колонка Auto-map в `/admin/content`,
+   - блок Ingestion Auto-mapping в `/admin/content/[id]`.
+
+## Статус после Phase 11
+1. Публичные маршруты и текущие auth/admin/community потоки сохранены.
+2. Ingestion стал automation-first: richer metadata + авторазметка в доменную модель.
+3. Стратегия безопасного статуса сохранена: imported records по умолчанию создаются как `draft`.
+4. Build и lint проходят успешно на текущем этапе.
+
+## Следующий рекомендуемый шаг
+1. Перейти к фазе масштабирования контента:
+   - backfill по историческим видео,
+   - валидация mapping quality на большом объеме,
+   - точечная корректировка rule-set на реальных данных.
+2. После стабилизации авто-маппинга перейти к roadmap-блоку SEO/performance/indexing.
+3. После SEO/performance/indexing реализовать систему comment reputation (отдельным этапом, без смешивания с ingestion).
+
+## Что завершено в Phase 12
+1. Ingestion metadata reliability усилен поверх Phase 11:
+   - сохранен базовый feed-контур;
+   - добавлен oEmbed enrichment для более надежных `title/channel/thumbnail`;
+   - watch-page enrichment сохранен как best-effort слой для `description/keywords/category`.
+2. В payload импортов добавлены явные quality-сигналы по полям:
+   - `metadataSources`,
+   - `metadataQuality.fieldReliability`,
+   - `metadataQuality.overallReliability`,
+   - `missingCriticalFields`.
+3. Auto-mapping обновлен до более объяснимой и устойчивой модели:
+   - расширены keyword-правила (включая RU-сигналы),
+   - добавлены source-profile hints,
+   - усилены `reasonCodes`, `matchedTerms`, `mappingScore`,
+   - confidence теперь учитывает metadata reliability.
+4. Введены явные publish/review decision rules:
+   - безопасный default сохранен (`draft`),
+   - `automation.publishDecision` + `automation.reviewState` + `automation.reasonCodes`,
+   - строго ограниченный auto-publish возможен только при `YOUTUBE_INGESTION_ENABLE_AUTOPUBLISH=true` и high/high условиях.
+5. Улучшена admin-операционка для review queue:
+   - фильтр automation-состояний в `/admin/content`,
+   - расширенная explainability в `/admin/content/[id]` (confidence/score/review/publish/reasons).
+
+## Статус после Phase 12
+1. Брендинг Phase 10 остается завершенным и сохраненным (green ork theme, icon, hero background).
+2. Automation refinement существенно продвинут: reliability + mapping explainability + policy layer.
+3. Live-safe ограничения сохранены:
+   - auth/admin/community потоки не переработаны вне scope;
+   - dedupe/manual override safety сохранены;
+   - ingestion продолжает работать через текущий runtime-контур.
+
+## Следующие roadmap-блоки
+1. Масштабирование реального контента и backfill на усиленных automation rails.
+2. SEO / performance / indexing (после стабилизации масштабирования).
+3. Comment reputation system (отдельная фаза, не смешивать с ingestion-проходами).
 
