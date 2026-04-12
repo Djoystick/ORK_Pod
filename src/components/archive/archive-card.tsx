@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 import { formatRuDate } from "@/lib/content";
 import type { ResolvedContentItem } from "@/types/content";
@@ -9,7 +9,7 @@ type ArchiveCardProps = {
 
 export function ArchiveCard({ item }: ArchiveCardProps) {
   return (
-    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition hover:border-white/20 hover:bg-white/[0.06]">
+    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition hover:border-emerald-300/35 hover:bg-emerald-400/[0.05]">
       <Link href={`/streams/${item.slug}`} className="block">
         <div
           className="relative h-44 border-b border-white/10"
@@ -28,15 +28,15 @@ export function ArchiveCard({ item }: ArchiveCardProps) {
 
         <div className="space-y-3 p-5">
           <p className="text-xs text-zinc-400">{formatRuDate(item.publishedAt)}</p>
-          <h3 className="font-display text-lg leading-tight text-zinc-100 transition group-hover:text-white">
+          <h3 className="font-display text-lg leading-tight text-zinc-100 transition group-hover:text-emerald-50">
             {item.title}
           </h3>
           <p className="line-clamp-2 text-sm text-zinc-300">{item.excerpt}</p>
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-white/15 px-2.5 py-1 text-xs text-zinc-300">
+            <span className="rounded-full border border-emerald-300/20 px-2.5 py-1 text-xs text-zinc-300">
               {item.series?.title ?? "Без серии"}
             </span>
-            <span className="rounded-full border border-white/15 px-2.5 py-1 text-xs text-zinc-300">
+            <span className="rounded-full border border-emerald-300/20 px-2.5 py-1 text-xs text-zinc-300">
               {item.durationMinutes > 0 ? `${item.durationMinutes} мин` : "Длительность TBD"}
             </span>
           </div>

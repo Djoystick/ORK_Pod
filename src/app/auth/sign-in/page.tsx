@@ -34,7 +34,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   return (
     <Container className="space-y-6 pb-16">
       <section className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">Auth</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-emerald-300">Auth</p>
         <h1 className="font-display text-4xl text-zinc-100">Вход в ORKPOD</h1>
         <p className="max-w-2xl text-sm text-zinc-300">
           Используется production-направленный путь Supabase Auth. После входа станут доступны
@@ -59,13 +59,13 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           <div className="flex flex-wrap gap-2">
             <Link
               href={nextPath}
-              className="inline-flex h-10 items-center rounded-lg border border-white/20 px-4 text-sm text-zinc-200 transition hover:border-white/35"
+              className="inline-flex h-10 items-center rounded-lg border border-emerald-300/35 px-4 text-sm text-emerald-100 transition hover:border-emerald-300/60"
             >
               Вернуться к странице
             </Link>
             <Link
               href="/admin"
-              className="inline-flex h-10 items-center rounded-lg bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200"
+              className="inline-flex h-10 items-center rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-[#062515] transition hover:bg-emerald-200"
             >
               Открыть /admin
             </Link>
@@ -78,4 +78,3 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
     </Container>
   );
 }
-

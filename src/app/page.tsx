@@ -1,3 +1,4 @@
+﻿import Image from "next/image";
 import Link from "next/link";
 
 import { ArchiveCard } from "@/components/archive/archive-card";
@@ -14,16 +15,27 @@ export default async function HomePage() {
   return (
     <Container className="space-y-14 pb-16">
       <Reveal>
-        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#0f172a] via-[#0a1020] to-[#0d1024] p-7 sm:p-10">
-          <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+        <section className="relative overflow-hidden rounded-3xl border border-emerald-300/20 bg-[#0a1711] p-7 sm:p-10">
+          <Image
+            src="/branding/background.webp"
+            alt="ORKPOD hero background"
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 1200px"
+            className="object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(2,8,5,0.84)_12%,rgba(2,10,7,0.58)_45%,rgba(1,6,4,0.9)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_20%,rgba(52,211,153,0.22),transparent_45%)]" />
+
+          <div className="relative grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
             <div className="space-y-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">
+              <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">
                 ORKPOD MEDIA ARCHIVE
               </p>
               <h1 className="font-display text-4xl leading-tight text-zinc-100 sm:text-6xl">
                 Архив стримов и видеозаписей с удобной навигацией по сериям
               </h1>
-              <p className="max-w-2xl text-base leading-7 text-zinc-300 sm:text-lg">
+              <p className="max-w-2xl text-base leading-7 text-zinc-200 sm:text-lg">
                 Мы пересобираем контент Orkpod в формат каталога: категории, рубрики,
                 платформы, детальные страницы записей и быстрый переход к просмотру.
               </p>
@@ -32,9 +44,9 @@ export default async function HomePage() {
             <form
               action="/streams"
               method="get"
-              className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-4"
+              className="space-y-3 rounded-2xl border border-emerald-200/25 bg-black/35 p-4 backdrop-blur-sm"
             >
-              <label className="block text-sm text-zinc-300" htmlFor="home-search">
+              <label className="block text-sm text-zinc-200" htmlFor="home-search">
                 Быстрый вход в архив
               </label>
               <input
@@ -42,11 +54,11 @@ export default async function HomePage() {
                 name="q"
                 type="search"
                 placeholder="Например: Next.js, интервью, OBS"
-                className="h-12 w-full rounded-xl border border-white/15 bg-black/30 px-4 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
+                className="h-12 w-full rounded-xl border border-white/15 bg-black/35 px-4 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/80"
               />
               <button
                 type="submit"
-                className="h-11 w-full rounded-xl bg-white text-sm font-semibold text-black transition hover:bg-zinc-200"
+                className="h-11 w-full rounded-xl bg-emerald-300 text-sm font-semibold text-[#062515] transition hover:bg-emerald-200"
               >
                 Открыть архив
               </button>
@@ -63,7 +75,7 @@ export default async function HomePage() {
           </div>
           <Link
             href="/streams"
-            className="rounded-full border border-white/20 px-4 py-2 text-sm text-zinc-200 transition hover:border-white/35 hover:text-white"
+            className="rounded-full border border-emerald-300/30 px-4 py-2 text-sm text-emerald-100 transition hover:border-emerald-300/60 hover:text-emerald-50"
           >
             Весь архив
           </Link>

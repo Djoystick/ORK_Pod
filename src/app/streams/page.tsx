@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 
 import { ArchiveExplorer } from "@/app/streams/archive-explorer";
 import { Container } from "@/components/shared/container";
@@ -19,7 +19,7 @@ export default async function StreamsPage() {
     <Container className="space-y-8 pb-16">
       <Reveal>
         <section className="space-y-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Архив</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Архив</p>
           <h1 className="font-display text-4xl leading-tight text-zinc-100 sm:text-5xl">
             Каталог записей
           </h1>

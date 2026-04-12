@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #060911;
-  --foreground: #edf1ff;
-  --surface: #0d1324;
-  --surface-soft: #111a2e;
-  --muted: #aab2c8;
+  --background: #050b08;
+  --foreground: #edf8f1;
+  --surface: #0c1813;
+  --surface-soft: #12211b;
+  --muted: #b5cabb;
   --font-sans-stack: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
   --font-display-stack: "Space Grotesk", "Avenir Next", "Noto Sans", sans-serif;
 }
@@ -22,9 +22,9 @@ body {
   font-family: var(--font-sans-stack);
   min-height: 100%;
   background-image:
-    radial-gradient(circle at 15% -5%, rgba(14, 165, 233, 0.14), transparent 35%),
-    radial-gradient(circle at 85% 0%, rgba(99, 102, 241, 0.16), transparent 40%),
-    linear-gradient(180deg, #050912 0%, #060911 28%, #070b13 100%);
+    radial-gradient(circle at 15% -5%, rgba(16, 185, 129, 0.18), transparent 35%),
+    radial-gradient(circle at 85% 0%, rgba(52, 211, 153, 0.15), transparent 40%),
+    linear-gradient(180deg, #040a07 0%, #050b08 30%, #070f0b 100%);
 }
 
 .font-display {
@@ -33,6 +33,6 @@ body {
 }
 
 ::selection {
-  background: rgba(34, 211, 238, 0.32);
-  color: #f8fdff;
+  background: rgba(52, 211, 153, 0.34);
+  color: #f3fff8;
 }

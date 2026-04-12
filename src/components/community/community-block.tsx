@@ -115,8 +115,8 @@ export function CommunityBlock({
               disabled={reactionPending || !communityWrite.canWrite}
               className={`rounded-full border px-3 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
                 item.reactedByCurrentUser
-                  ? "border-cyan-300/50 bg-cyan-300/20 text-cyan-100"
-                  : "border-white/15 bg-white/5 text-zinc-200 hover:border-white/30"
+                  ? "border-emerald-300/55 bg-emerald-300/20 text-emerald-100"
+                  : "border-white/15 bg-white/5 text-zinc-200 hover:border-emerald-300/45"
               }`}
             >
               {reactionLabels[item.reactionType]} · {item.count}
@@ -186,7 +186,7 @@ export function CommunityBlock({
                 defaultValue={initialDisplayName}
                 maxLength={48}
                 required
-                className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
+                className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/80"
               />
             </label>
           ) : (
@@ -203,13 +203,13 @@ export function CommunityBlock({
               maxLength={1200}
               rows={4}
               placeholder="Поделитесь мыслью по выпуску..."
-              className="rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
+              className="rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/80"
             />
           </label>
           <button
             type="submit"
             disabled={commentPending || !communityWrite.canWrite}
-            className="h-10 rounded-lg bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-[#062515] transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {commentPending ? "Отправка..." : "Отправить комментарий"}
           </button>

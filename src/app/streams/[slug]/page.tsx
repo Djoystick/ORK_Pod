@@ -64,7 +64,7 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
           </div>
 
           <div className="space-y-5 p-6 sm:p-8">
-            <Link href="/streams" className="text-sm text-cyan-300 hover:text-cyan-200">
+            <Link href="/streams" className="text-sm text-emerald-300 hover:text-emerald-200">
               ← Вернуться в архив
             </Link>
             <h1 className="font-display text-3xl leading-tight text-zinc-100 sm:text-4xl">
@@ -93,7 +93,7 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
                 href={item.primaryLink.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-11 items-center rounded-xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200"
+                className="inline-flex h-11 items-center rounded-xl bg-emerald-300 px-4 text-sm font-semibold text-[#062515] transition hover:bg-emerald-200"
               >
                 {item.primaryLink.label}
               </a>
@@ -109,7 +109,7 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between rounded-xl border border-white/15 px-3 py-2 text-sm text-zinc-200 transition hover:border-white/30 hover:text-white"
+                    className="flex items-center justify-between rounded-xl border border-white/15 px-3 py-2 text-sm text-zinc-200 transition hover:border-emerald-300/45 hover:text-emerald-50"
                   >
                     <span>{link.label}</span>
                     <span className="text-xs uppercase tracking-[0.12em] text-zinc-500">
@@ -123,7 +123,7 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
               {item.tags.map((tag) => (
                 <span
                   key={tag.id}
-                  className="rounded-full border border-white/15 px-3 py-1 text-xs text-zinc-300"
+                  className="rounded-full border border-emerald-300/20 px-3 py-1 text-xs text-zinc-300"
                 >
                   #{tag.label}
                 </span>

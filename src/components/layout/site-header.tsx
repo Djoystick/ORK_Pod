@@ -1,5 +1,6 @@
-"use client";
+﻿"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -32,17 +33,24 @@ export function SiteHeader({ authState }: SiteHeaderProps) {
   const signInHref = `/auth/sign-in?next=${encodeURIComponent(currentPath)}`;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#070a12]/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050b09]/88 backdrop-blur-xl">
       <Container className="flex h-18 items-center justify-between gap-6">
         <Link href="/" className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-indigo-500 text-sm font-semibold text-black">
-            OP
+          <div className="relative size-9 overflow-hidden rounded-lg ring-1 ring-emerald-300/35">
+            <Image
+              src="/branding/icon.jpg"
+              alt="ORKPOD icon"
+              fill
+              sizes="36px"
+              className="object-cover"
+              priority
+            />
           </div>
           <div>
-            <p className="font-display text-sm uppercase tracking-[0.22em] text-zinc-300">
-              Orkpod
+            <p className="font-display text-sm uppercase tracking-[0.22em] text-emerald-100">
+              ORKPOD
             </p>
-            <p className="text-xs text-zinc-500">Video Archive</p>
+            <p className="text-xs text-zinc-400">Ork Archive</p>
           </div>
         </Link>
 
@@ -57,7 +65,9 @@ export function SiteHeader({ authState }: SiteHeaderProps) {
                   href={item.href}
                   className={cn(
                     "rounded-full px-4 py-2 text-sm transition",
-                    active ? "bg-white text-black" : "text-zinc-300 hover:text-white",
+                    active
+                      ? "bg-emerald-300 text-[#062515]"
+                      : "text-zinc-300 hover:text-emerald-100",
                   )}
                 >
                   {item.label}
@@ -93,7 +103,7 @@ export function SiteHeader({ authState }: SiteHeaderProps) {
                 <input type="hidden" name="redirectTo" value={currentPath} />
                 <button
                   type="submit"
-                  className="h-9 rounded-full border border-white/20 px-4 text-sm text-zinc-200 transition hover:border-white/35 hover:text-white"
+                  className="h-9 rounded-full border border-white/20 px-4 text-sm text-zinc-200 transition hover:border-emerald-300/45 hover:text-emerald-100"
                 >
                   Выйти
                 </button>
@@ -102,7 +112,7 @@ export function SiteHeader({ authState }: SiteHeaderProps) {
           ) : (
             <Link
               href={signInHref}
-              className="inline-flex h-9 items-center rounded-full bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200"
+              className="inline-flex h-9 items-center rounded-full bg-emerald-300 px-4 text-sm font-semibold text-[#062515] transition hover:bg-emerald-200"
             >
               Войти
             </Link>
@@ -112,4 +122,3 @@ export function SiteHeader({ authState }: SiteHeaderProps) {
     </header>
   );
 }
-

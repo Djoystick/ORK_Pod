@@ -14,7 +14,7 @@ export default function NotFound() {
         </p>
         <Link
           href="/streams"
-          className="inline-flex h-11 items-center rounded-xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200"
+          className="inline-flex h-11 items-center rounded-xl bg-emerald-300 px-4 text-sm font-semibold text-[#062515] transition hover:bg-emerald-200"
         >
           Перейти в архив
         </Link>

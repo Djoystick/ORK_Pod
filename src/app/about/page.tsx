@@ -1,4 +1,4 @@
-import { Reveal } from "@/components/motion/reveal";
+﻿import { Reveal } from "@/components/motion/reveal";
 import { Container } from "@/components/shared/container";
 
 export const metadata = {
@@ -13,7 +13,7 @@ const principles = [
   },
   {
     title: "Поиск и discoverability",
-    text: "Главный сценарий - быстро найти нужный материал по теме, рубрике, платформе и дате, а не листать хронологию вручную.",
+    text: "Главный сценарий — быстро найти нужный материал по теме, рубрике, платформе и дате, а не листать хронологию вручную.",
   },
   {
     title: "Готовность к масштабированию",
@@ -26,9 +26,9 @@ export default function AboutPage() {
     <Container className="space-y-10 pb-16">
       <Reveal>
         <section className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-7 sm:p-9">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">О проекте</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">О проекте</p>
           <h1 className="font-display text-4xl leading-tight text-zinc-100 sm:text-5xl">
-            ORKPOD Archive - каталог записей, собранный для удобного изучения
+            ORKPOD Archive — каталог записей, собранный для удобного изучения
           </h1>
           <p className="max-w-3xl text-zinc-300">
             Этот сайт пересобирает контентную идею Orkpod в современную систему

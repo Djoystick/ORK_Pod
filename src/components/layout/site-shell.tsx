@@ -17,9 +17,9 @@ export async function SiteShell({ children }: PropsWithChildren) {
   return (
     <div className="relative min-h-screen overflow-x-clip bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-28 top-10 h-[340px] w-[340px] rounded-full bg-cyan-500/20 blur-[120px]" />
-        <div className="absolute right-0 top-[20%] h-[380px] w-[380px] rounded-full bg-indigo-500/20 blur-[160px]" />
-        <div className="absolute bottom-[-100px] left-[30%] h-[360px] w-[360px] rounded-full bg-fuchsia-500/10 blur-[150px]" />
+        <div className="absolute -left-28 top-10 h-[340px] w-[340px] rounded-full bg-emerald-500/22 blur-[120px]" />
+        <div className="absolute right-0 top-[20%] h-[380px] w-[380px] rounded-full bg-green-500/16 blur-[160px]" />
+        <div className="absolute bottom-[-100px] left-[30%] h-[360px] w-[360px] rounded-full bg-lime-500/10 blur-[150px]" />
       </div>
 
       <div className="relative z-10 flex min-h-screen flex-col">

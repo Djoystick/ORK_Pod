@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { ArchiveFilters, SelectOption } from "@/types/content";
 
@@ -24,7 +24,7 @@ function SelectField({ label, value, options, onChange }: SelectFieldProps) {
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
+        className="h-11 rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/80"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -52,7 +52,7 @@ export function ArchiveControls({
           value={filters.search}
           onChange={(event) => onChange({ search: event.target.value })}
           placeholder="Название, тег, серия, платформа"
-          className="h-12 rounded-xl border border-white/15 bg-black/30 px-4 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
+          className="h-12 rounded-xl border border-white/15 bg-black/30 px-4 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/80"
         />
       </label>
 

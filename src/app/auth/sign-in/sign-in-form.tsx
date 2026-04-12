@@ -36,7 +36,7 @@ export function SignInForm({ nextPath }: SignInFormProps) {
           name="email"
           autoComplete="email"
           required
-          className="h-11 rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
+          className="h-11 rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/80"
         />
       </label>
 
@@ -47,14 +47,14 @@ export function SignInForm({ nextPath }: SignInFormProps) {
           name="password"
           autoComplete="current-password"
           required
-          className="h-11 rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
+          className="h-11 rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/80"
         />
       </label>
 
       <button
         type="submit"
         disabled={pending}
-        className="h-11 rounded-xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-11 rounded-xl bg-emerald-300 px-4 text-sm font-semibold text-[#062515] transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? "Входим..." : "Войти"}
       </button>
