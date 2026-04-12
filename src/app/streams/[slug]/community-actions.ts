@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { assertCommunityWriteAccess } from "@/server/auth/community-gate";
-import { ensureCommunityIdentity } from "@/server/auth/community-identity";
+import { resolveCommunityIdentityForWrite } from "@/server/auth/community-identity";
 import { getContentRepository } from "@/server/repositories/content-repository";
 import { consumeWriteRateLimit } from "@/server/security/write-rate-limit";
 import {
@@ -65,7 +65,10 @@ export async function addCommentAction(
     const writeContext = await assertCommunityWriteAccess();
     const preferredName =
       displayName || writeContext.principal?.email?.split("@")[0] || undefined;
-    const identity = await ensureCommunityIdentity(preferredName);
+    const identity = await resolveCommunityIdentityForWrite({
+      writeContext,
+      preferredDisplayName: preferredName,
+    });
     const limit = await consumeWriteRateLimit({
       scope: "comment_create",
       actorKey: `${identity.fingerprint}:${contentItemId}`,
@@ -111,7 +114,9 @@ export async function setReactionAction(
 
     const contentItemId = await resolvePublishedItemIdBySlug(slug);
     const writeContext = await assertCommunityWriteAccess();
-    const identity = await ensureCommunityIdentity();
+    const identity = await resolveCommunityIdentityForWrite({
+      writeContext,
+    });
     const limit = await consumeWriteRateLimit({
       scope: "reaction_write",
       actorKey: `${identity.fingerprint}:${contentItemId}`,

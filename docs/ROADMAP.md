@@ -54,3 +54,30 @@
    - убедиться, что при неактивном ingestion runtime отображается warning/ограниченный режим без 500;
    - убедиться, что остальные admin-блоки продолжают работать штатно.
 
+## Что завершено в Phase 09C
+1. Устранен live-блокер community write в production: путь rate-limit больше не пишет в локальный файловый store на Vercel.
+2. В `src/server/security/write-rate-limit.ts` внедрена явная стратегия:
+   - production (`NODE_ENV=production`) => `memory_ephemeral` (без `fs`-записей),
+   - local/dev => `file_local_json` (сохранен fallback-режим),
+   - опциональный dev override через `ORKPOD_RATE_LIMIT_STORE`.
+3. Community identity/write flow выровнен под `supabase_auth_required`:
+   - server actions используют `resolveCommunityIdentityForWrite(...)`,
+   - в auth-required режиме формируется стабильный fingerprint от Supabase user id без guest-cookie зависимости для write-path.
+4. Public detail community UI выровнен по режиму:
+   - в `supabase_auth_required` скрыто guest-поле имени,
+   - показаны корректные auth-aware сообщения,
+   - в guest/fallback режиме поле имени сохранено.
+5. Реакции для авторизованного пользователя корректнее сопоставляются с текущим viewer fingerprint в auth-required режиме.
+
+## Статус после Phase 09C
+1. Community write-path в production больше не зависит от записи в локальную файловую систему.
+2. UI detail-страницы больше не показывает ввод guest identity в auth-required режиме.
+3. Локальный fallback-сценарий сохранен и явно отделен от production поведения.
+
+## Следующий рекомендуемый шаг
+1. Выполнить post-deploy smoke на live:
+   - открыть detail-страницу,
+   - проверить sign-in и отправку комментария/реакции,
+   - убедиться в отсутствии `EROFS` и успешной server action обработке,
+   - проверить, что для неавторизованного пользователя в auth-required режиме показывается корректное требование входа.
+

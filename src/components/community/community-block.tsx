@@ -31,6 +31,7 @@ type CommunityBlockProps = {
   communityWrite: {
     canWrite: boolean;
     requiresAuth: boolean;
+    writeMode: "guest_local" | "supabase_auth_required";
   };
 };
 
@@ -88,6 +89,7 @@ export function CommunityBlock({
     if (comments.length === 1) return "1 комментарий";
     return `${comments.length} комментариев`;
   }, [comments.length]);
+  const isGuestMode = communityWrite.writeMode === "guest_local";
 
   return (
     <section className="space-y-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
@@ -126,13 +128,18 @@ export function CommunityBlock({
             {reactionState.message}
           </p>
         ) : null}
-        {!communityWrite.canWrite ? (
+        {!communityWrite.canWrite && communityWrite.requiresAuth ? (
           <p className="text-xs text-amber-300">
             Реакции доступны только после авторизации в текущем write-режиме.{" "}
             <Link href={signInHref} className="underline hover:text-amber-200">
               Войти
             </Link>
             .
+          </p>
+        ) : null}
+        {!communityWrite.canWrite && !communityWrite.requiresAuth ? (
+          <p className="text-xs text-amber-300">
+            Реакции временно доступны только для чтения в текущей конфигурации.
           </p>
         ) : null}
       </div>
@@ -171,16 +178,22 @@ export function CommunityBlock({
             className="hidden"
             aria-hidden="true"
           />
-          <label className="grid gap-1 text-xs text-zinc-400">
-            Имя (временная identity в fallback-режиме)
-            <input
-              name="displayName"
-              defaultValue={initialDisplayName}
-              maxLength={48}
-              required
-              className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
-            />
-          </label>
+          {isGuestMode ? (
+            <label className="grid gap-1 text-xs text-zinc-400">
+              Имя (временная identity в fallback-режиме)
+              <input
+                name="displayName"
+                defaultValue={initialDisplayName}
+                maxLength={48}
+                required
+                className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/70"
+              />
+            </label>
+          ) : (
+            <p className="text-xs text-zinc-400">
+              Комментарий будет отправлен от имени авторизованного аккаунта Supabase.
+            </p>
+          )}
           <label className="grid gap-1 text-xs text-zinc-400">
             Комментарий
             <textarea
@@ -200,13 +213,18 @@ export function CommunityBlock({
           >
             {commentPending ? "Отправка..." : "Отправить комментарий"}
           </button>
-          {!communityWrite.canWrite ? (
+          {!communityWrite.canWrite && communityWrite.requiresAuth ? (
             <p className="text-xs text-amber-300">
               Отправка комментариев отключена до выполнения требований write-доступа.{" "}
               <Link href={signInHref} className="underline hover:text-amber-200">
                 Войти
               </Link>
               .
+            </p>
+          ) : null}
+          {!communityWrite.canWrite && !communityWrite.requiresAuth ? (
+            <p className="text-xs text-amber-300">
+              Отправка комментариев временно отключена в текущей конфигурации.
             </p>
           ) : null}
           {commentState.status !== "idle" ? (

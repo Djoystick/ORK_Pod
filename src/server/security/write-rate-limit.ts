@@ -3,12 +3,41 @@ import path from "node:path";
 
 import "server-only";
 
+type RateLimitStore = Record<string, number[]>;
+type RateLimitStoreMode = "file_local_json" | "memory_ephemeral";
+
 const dataDirectory = path.join(process.cwd(), "data");
 const localRateLimitStorePath = path.join(dataDirectory, "local-write-rate-limits.json");
 
-type RateLimitStore = Record<string, number[]>;
+declare global {
+  var __ORKPOD_MEMORY_RATE_LIMIT_STORE__: RateLimitStore | undefined;
+}
 
-async function ensureStore() {
+function resolveStoreMode(): RateLimitStoreMode {
+  // Production/serverless runtimes should never write to local filesystem.
+  if (process.env.NODE_ENV === "production") {
+    return "memory_ephemeral";
+  }
+
+  const configured = process.env.ORKPOD_RATE_LIMIT_STORE?.trim().toLowerCase();
+  if (configured === "memory") {
+    return "memory_ephemeral";
+  }
+  if (configured === "file" || configured === "file_local_json") {
+    return "file_local_json";
+  }
+
+  return "file_local_json";
+}
+
+function getMemoryStore(): RateLimitStore {
+  if (!globalThis.__ORKPOD_MEMORY_RATE_LIMIT_STORE__) {
+    globalThis.__ORKPOD_MEMORY_RATE_LIMIT_STORE__ = {};
+  }
+  return globalThis.__ORKPOD_MEMORY_RATE_LIMIT_STORE__;
+}
+
+async function ensureFileStore() {
   await mkdir(dataDirectory, { recursive: true });
   try {
     await readFile(localRateLimitStorePath, "utf8");
@@ -17,8 +46,8 @@ async function ensureStore() {
   }
 }
 
-async function readStore(): Promise<RateLimitStore> {
-  await ensureStore();
+async function readFileStore(): Promise<RateLimitStore> {
+  await ensureFileStore();
   try {
     const raw = await readFile(localRateLimitStorePath, "utf8");
     const parsed = JSON.parse(raw) as unknown;
@@ -31,9 +60,24 @@ async function readStore(): Promise<RateLimitStore> {
   }
 }
 
-async function writeStore(store: RateLimitStore) {
-  await ensureStore();
+async function writeFileStore(store: RateLimitStore) {
+  await ensureFileStore();
   await writeFile(localRateLimitStorePath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+}
+
+async function readStore(mode: RateLimitStoreMode): Promise<RateLimitStore> {
+  if (mode === "memory_ephemeral") {
+    return getMemoryStore();
+  }
+  return readFileStore();
+}
+
+async function writeStore(mode: RateLimitStoreMode, store: RateLimitStore) {
+  if (mode === "memory_ephemeral") {
+    globalThis.__ORKPOD_MEMORY_RATE_LIMIT_STORE__ = store;
+    return;
+  }
+  await writeFileStore(store);
 }
 
 export async function consumeWriteRateLimit(params: {
@@ -44,7 +88,8 @@ export async function consumeWriteRateLimit(params: {
 }) {
   const now = Date.now();
   const key = `${params.scope}:${params.actorKey}`;
-  const store = await readStore();
+  const mode = resolveStoreMode();
+  const store = await readStore(mode);
   const existing = store[key] ?? [];
   const windowStart = now - params.windowMs;
   const recent = existing.filter((timestamp) => timestamp >= windowStart);
@@ -53,7 +98,7 @@ export async function consumeWriteRateLimit(params: {
     const firstHit = recent[0];
     const retryAfterMs = Math.max(0, params.windowMs - (now - firstHit));
     store[key] = recent;
-    await writeStore(store);
+    await writeStore(mode, store);
     return {
       allowed: false,
       retryAfterMs,
@@ -64,7 +109,7 @@ export async function consumeWriteRateLimit(params: {
 
   const next = [...recent, now];
   store[key] = next;
-  await writeStore(store);
+  await writeStore(mode, store);
 
   return {
     allowed: true,

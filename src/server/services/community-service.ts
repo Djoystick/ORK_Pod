@@ -1,6 +1,7 @@
 import "server-only";
 
 import { assertAdminWriteAccess, resolveAdminGateContext } from "@/server/auth/admin-gate";
+import { buildSupabaseActorFingerprint } from "@/server/auth/community-identity";
 import { resolveCommunityWriteContext } from "@/server/auth/community-gate";
 import type { CommunityIdentityContext } from "@/server/auth/community-identity";
 import { getContentRepository } from "@/server/repositories/content-repository";
@@ -53,10 +54,14 @@ export async function getPublicCommunityData(
     repository.listReactionsForContentItem(contentItemId),
     resolveCommunityWriteContext(),
   ]);
+  const effectiveViewerFingerprint =
+    writeContext.mode === "supabase_auth_required" && writeContext.principal
+      ? buildSupabaseActorFingerprint(writeContext.principal.userId)
+      : viewerFingerprint;
 
   return {
     comments,
-    reactionSummary: buildReactionSummary(reactions, viewerFingerprint),
+    reactionSummary: buildReactionSummary(reactions, effectiveViewerFingerprint),
     policy: {
       identityMode: "guest_cookie_v1" as const,
       commentModeration: "pending_by_default" as const,

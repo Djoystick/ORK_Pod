@@ -143,6 +143,7 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
           communityWrite={{
             canWrite: community.policy.canWrite,
             requiresAuth: community.policy.requiresAuth,
+            writeMode: community.policy.writeMode,
           }}
         />
       </Reveal>
