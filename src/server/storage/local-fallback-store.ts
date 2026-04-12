@@ -13,6 +13,8 @@ import type {
   SourceChannel,
 } from "@/types/content";
 
+type IngestionLockStoreMode = "file_local_json" | "memory_ephemeral";
+
 const dataDirectory = path.join(process.cwd(), "data");
 const localContentStorePath = path.join(dataDirectory, "local-content-items.json");
 const legacyManualStorePath = path.join(dataDirectory, "manual-content-items.json");
@@ -21,6 +23,43 @@ const localImportRunsPath = path.join(dataDirectory, "local-import-runs.json");
 const localIngestionLocksPath = path.join(dataDirectory, "local-ingestion-locks.json");
 const localCommentsPath = path.join(dataDirectory, "local-comments.json");
 const localReactionsPath = path.join(dataDirectory, "local-reactions.json");
+
+const emptyIngestionLockSnapshot: IngestionLockSnapshot = {
+  globalSyncAllLock: null,
+  sourceLocks: [],
+};
+
+declare global {
+  var __ORKPOD_MEMORY_INGESTION_LOCK_SNAPSHOT__: IngestionLockSnapshot | undefined;
+}
+
+function resolveIngestionLockStoreMode(): IngestionLockStoreMode {
+  // Production/serverless runtimes should never write locks to local filesystem.
+  if (process.env.NODE_ENV === "production") {
+    return "memory_ephemeral";
+  }
+
+  const configured = process.env.ORKPOD_INGESTION_LOCK_STORE?.trim().toLowerCase();
+  if (configured === "memory") {
+    return "memory_ephemeral";
+  }
+  if (configured === "file" || configured === "file_local_json") {
+    return "file_local_json";
+  }
+
+  return "file_local_json";
+}
+
+function getMemoryIngestionLockSnapshot() {
+  if (!globalThis.__ORKPOD_MEMORY_INGESTION_LOCK_SNAPSHOT__) {
+    globalThis.__ORKPOD_MEMORY_INGESTION_LOCK_SNAPSHOT__ = {
+      ...emptyIngestionLockSnapshot,
+      sourceLocks: [],
+    };
+  }
+
+  return globalThis.__ORKPOD_MEMORY_INGESTION_LOCK_SNAPSHOT__;
+}
 
 async function ensureDataDirectory() {
   await mkdir(dataDirectory, { recursive: true });
@@ -164,12 +203,17 @@ export async function writeLocalFallbackImportRuns(runs: ImportRun[]) {
 }
 
 export async function readLocalIngestionLocks() {
+  const storeMode = resolveIngestionLockStoreMode();
+  if (storeMode === "memory_ephemeral") {
+    return getMemoryIngestionLockSnapshot();
+  }
+
   await ensureLocalIngestionLockStore();
   const parsed = await readJson(localIngestionLocksPath);
 
   if (Array.isArray(parsed) || !parsed || typeof parsed !== "object") {
     return {
-      globalSyncAllLock: null,
+      ...emptyIngestionLockSnapshot,
       sourceLocks: [],
     } satisfies IngestionLockSnapshot;
   }
@@ -187,6 +231,15 @@ export async function readLocalIngestionLocks() {
 }
 
 export async function writeLocalIngestionLocks(snapshot: IngestionLockSnapshot) {
+  const storeMode = resolveIngestionLockStoreMode();
+  if (storeMode === "memory_ephemeral") {
+    globalThis.__ORKPOD_MEMORY_INGESTION_LOCK_SNAPSHOT__ = {
+      globalSyncAllLock: snapshot.globalSyncAllLock,
+      sourceLocks: [...snapshot.sourceLocks],
+    };
+    return;
+  }
+
   await ensureDataDirectory();
   await writeFile(localIngestionLocksPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
 }

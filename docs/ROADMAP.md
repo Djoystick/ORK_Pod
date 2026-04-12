@@ -1,11 +1,11 @@
-# ORKPOD Archive Roadmap (после Phase 14)
+# ORKPOD Archive Roadmap (после Phase 14A)
 
 ## Текущее состояние продукта
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
-2. Брендинг Phase 10 (green ork, icon, hero background) сохранён.
-3. Auth/sign-in/sign-out, admin CMS, source registry, community flow сохранены.
-4. Ingestion pipeline и automation rules работают в live-safe режиме (draft/review default).
-5. Phase 14 усилил production-ready API-backed path для YouTube metadata и historical backfill стратегии.
+2. Брендинг (green ork, icon, hero background) сохранён.
+3. Auth/admin/community flow сохранены без архитектурных изменений.
+4. YouTube ingestion + automation phases 11-14 сохранены.
+5. Phase 14A закрыл live-блокер `/admin/sources` класса `EROFS` для ingestion lock storage.
 
 ## Статус фаз
 1. Phase 01 — выполнено.
@@ -24,31 +24,27 @@
 14. Phase 11 — выполнено.
 15. Phase 12 — выполнено.
 16. Phase 13 — выполнено.
-17. Phase 14 — выполнено (YouTube Data API enablement + large backfill path prep + operator visibility).
+17. Phase 14 — выполнено.
+18. Phase 14A — выполнено (production-safe ingestion lock storage fix для Vercel).
 
-## Что усилено в Phase 14
-1. Data API путь стал primary при наличии ключа:
-   - добавлен primary ingestion path через `channels -> uploads playlist -> playlistItems pagination -> videos snippet`;
-   - RSS path сохранён как честный fallback.
-2. Поддержан исторический backfill beyond RSS-window:
-   - pagination по uploads playlist;
-   - env-контроли `YOUTUBE_DATA_API_BACKFILL_MAX_ITEMS_PER_SOURCE` и `YOUTUBE_DATA_API_BACKFILL_PAGE_SIZE`.
-3. Уточнена операционная телеметрия ingestion:
-   - `dataAcquisitionPath` (`youtube_data_api_primary` / `youtube_feed_fallback`);
-   - API-backed/exact сигналы и backfill telemetry в payload.
-4. Улучшена админ-видимость:
-   - `/admin/content` фильтр `metadataMode` (`exact_api`, `api_backed`, `best_effort`);
-   - `/admin/imports` агрегаты imported/API-backed/exact/best-effort/review-needed.
-5. Сохранены safety guarantees:
-   - dedupe не создаёт duplicate external IDs;
-   - ручные правки не перезаписываются вслепую;
-   - rerun/retry и lock-guard остаются рабочими.
+## Что сделано в Phase 14A
+1. Найдена и устранена root cause:
+   - lock snapshot для ingestion читался/писался только в `data/local-ingestion-locks.json`;
+   - на Vercel production это приводило к `EROFS` при рендере `/admin/sources`.
+2. Введено явное разделение lock-store стратегии:
+   - production (`NODE_ENV=production`) => `memory_ephemeral` (без filesystem writes);
+   - local/dev => `file_local_json` (как и раньше);
+   - optional local override: `ORKPOD_INGESTION_LOCK_STORE=memory|file`.
+3. Locking не удалён и не ослаблен:
+   - anti-concurrency guard сохранён;
+   - sync-all guard сохранён;
+   - rerun safety и dedupe-поведение сохранены.
 
 ## Что остаётся до SEO/performance/indexing
-1. Подключить реальный `YOUTUBE_DATA_API_KEY` в production окружении (без него API-backed exact path не активируется на данных).
-2. Провести крупный historical backfill уже с ключом и откалибровать mapping/rules на расширенном корпусе.
-3. При необходимости углубить ingestion observability для long-run backfill операций.
+1. Подтвердить post-deploy на live, что `/admin/sources` больше не падает по `EROFS`.
+2. Продолжить эксплуатационную калибровку API-backed ingestion после подключения production key.
+3. После стабилизации масштабного ingestion-контура перейти к SEO/performance/indexing.
 
 ## Следующие roadmap-блоки
-1. SEO / performance / indexing (после закрепления API-backed масштабного backfill).
+1. SEO / performance / indexing.
 2. Comment reputation system (отдельной фазой, без смешения с ingestion scope).
