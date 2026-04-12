@@ -6,11 +6,21 @@ import { useRouter } from "next/navigation";
 
 import {
   addCommentAction,
-  initialCommunityCommentActionState,
-  initialCommunityReactionActionState,
   setReactionAction,
+  type CommunityCommentActionState,
+  type CommunityReactionActionState,
 } from "@/app/streams/[slug]/community-actions";
 import type { CommentRecord, CommunityReactionSummary, ReactionType } from "@/types/content";
+
+const INITIAL_COMMUNITY_REACTION_ACTION_STATE: CommunityReactionActionState = {
+  status: "idle",
+  message: "",
+};
+
+const INITIAL_COMMUNITY_COMMENT_ACTION_STATE: CommunityCommentActionState = {
+  status: "idle",
+  message: "",
+};
 
 type CommunityBlockProps = {
   slug: string;
@@ -54,11 +64,11 @@ export function CommunityBlock({
   const signInHref = `/auth/sign-in?next=${encodeURIComponent(`/streams/${slug}`)}`;
   const [reactionState, reactionAction, reactionPending] = useActionState(
     setReactionAction,
-    initialCommunityReactionActionState,
+    INITIAL_COMMUNITY_REACTION_ACTION_STATE,
   );
   const [commentState, commentAction, commentPending] = useActionState(
     addCommentAction,
-    initialCommunityCommentActionState,
+    INITIAL_COMMUNITY_COMMENT_ACTION_STATE,
   );
 
   useEffect(() => {

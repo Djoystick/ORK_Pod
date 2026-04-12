@@ -14,11 +14,6 @@ export type SourceActionState = {
   message: string;
 };
 
-export const initialSourceActionState: SourceActionState = {
-  status: "idle",
-  message: "",
-};
-
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;

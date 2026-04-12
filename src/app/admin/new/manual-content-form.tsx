@@ -5,11 +5,16 @@ import { useActionState, useMemo, useState } from "react";
 
 import {
   createManualContentAction,
-  initialCreateManualActionState,
+  type CreateManualActionState,
 } from "@/app/admin/new/actions";
 import { sanitizeSlug } from "@/lib/slug";
 import type { AdminGateContext } from "@/server/auth/admin-gate";
 import type { Category, Platform, Series } from "@/types/content";
+
+const INITIAL_CREATE_MANUAL_ACTION_STATE: CreateManualActionState = {
+  status: "idle",
+  message: "",
+};
 
 type ManualContentFormProps = {
   gate: AdminGateContext;
@@ -27,7 +32,7 @@ export function ManualContentForm({
   const [selectedCategory, setSelectedCategory] = useState<string>(categories[0]?.slug ?? "");
   const [state, formAction, isPending] = useActionState(
     createManualContentAction,
-    initialCreateManualActionState,
+    INITIAL_CREATE_MANUAL_ACTION_STATE,
   );
 
   const visibleSeries = useMemo(

@@ -3,10 +3,15 @@
 import { useActionState } from "react";
 
 import {
-  initialImportActionState,
   rerunImportRunAction,
+  type ImportActionState,
 } from "@/app/admin/imports/actions";
 import type { AdminGateContext } from "@/server/auth/admin-gate";
+
+const INITIAL_IMPORT_ACTION_STATE: ImportActionState = {
+  status: "idle",
+  message: "",
+};
 
 type ImportRunRerunFormProps = {
   gate: AdminGateContext;
@@ -21,7 +26,7 @@ export function ImportRunRerunForm({
 }: ImportRunRerunFormProps) {
   const [state, action, isPending] = useActionState(
     rerunImportRunAction,
-    initialImportActionState,
+    INITIAL_IMPORT_ACTION_STATE,
   );
 
   return (

@@ -5,9 +5,9 @@ import { useActionState } from "react";
 
 import {
   createSourceChannelAction,
-  initialSourceActionState,
   syncAllSourcesAction,
   syncSourceChannelAction,
+  type SourceActionState,
 } from "@/app/admin/sources/actions";
 import { AdminGateNotice } from "@/components/admin/admin-gate-notice";
 import type { AdminGateContext } from "@/server/auth/admin-gate";
@@ -17,6 +17,11 @@ import type {
   Platform,
   ResolvedSourceChannel,
 } from "@/types/content";
+
+const INITIAL_SOURCE_ACTION_STATE: SourceActionState = {
+  status: "idle",
+  message: "",
+};
 
 type SourceRegistryFormProps = {
   gate: AdminGateContext;
@@ -67,7 +72,7 @@ function SourceSyncForm({
 }) {
   const [state, action, isPending] = useActionState(
     syncSourceChannelAction,
-    initialSourceActionState,
+    INITIAL_SOURCE_ACTION_STATE,
   );
 
   const label = syncMode === "fresh" ? "Sync" : "Rerun";
@@ -110,11 +115,11 @@ export function SourceRegistryForm({
 }: SourceRegistryFormProps) {
   const [createState, createFormAction, isCreatePending] = useActionState(
     createSourceChannelAction,
-    initialSourceActionState,
+    INITIAL_SOURCE_ACTION_STATE,
   );
   const [syncAllState, syncAllAction, isSyncAllPending] = useActionState(
     syncAllSourcesAction,
-    initialSourceActionState,
+    INITIAL_SOURCE_ACTION_STATE,
   );
 
   const isDisabled = !gate.canAccessAdmin;

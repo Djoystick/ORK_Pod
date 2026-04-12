@@ -10,11 +10,6 @@ export type BootstrapPublishedActionState = {
   message: string;
 };
 
-export const initialBootstrapPublishedActionState: BootstrapPublishedActionState = {
-  status: "idle",
-  message: "",
-};
-
 export async function bootstrapPublishedContentAction(
   _prevState: BootstrapPublishedActionState,
   formData: FormData,
@@ -46,4 +41,3 @@ export async function bootstrapPublishedContentAction(
     };
   }
 }
-

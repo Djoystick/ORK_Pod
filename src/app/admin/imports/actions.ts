@@ -10,11 +10,6 @@ export type ImportActionState = {
   message: string;
 };
 
-export const initialImportActionState: ImportActionState = {
-  status: "idle",
-  message: "",
-};
-
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;

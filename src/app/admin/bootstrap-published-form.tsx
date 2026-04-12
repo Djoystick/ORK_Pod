@@ -4,9 +4,14 @@ import { useActionState } from "react";
 
 import {
   bootstrapPublishedContentAction,
-  initialBootstrapPublishedActionState,
+  type BootstrapPublishedActionState,
 } from "@/app/admin/actions";
 import type { AdminGateContext } from "@/server/auth/admin-gate";
+
+const INITIAL_BOOTSTRAP_PUBLISHED_ACTION_STATE: BootstrapPublishedActionState = {
+  status: "idle",
+  message: "",
+};
 
 type BootstrapPublishedFormProps = {
   gate: AdminGateContext;
@@ -19,7 +24,7 @@ export function BootstrapPublishedForm({
 }: BootstrapPublishedFormProps) {
   const [state, action, pending] = useActionState(
     bootstrapPublishedContentAction,
-    initialBootstrapPublishedActionState,
+    INITIAL_BOOTSTRAP_PUBLISHED_ACTION_STATE,
   );
 
   const canBootstrap = gate.canAccessAdmin;
@@ -64,4 +69,3 @@ export function BootstrapPublishedForm({
     </section>
   );
 }
-

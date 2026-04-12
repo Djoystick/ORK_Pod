@@ -3,11 +3,16 @@
 import { useActionState } from "react";
 
 import {
-  initialModerationActionState,
   setCommentModerationAction,
+  type ModerationActionState,
 } from "@/app/admin/moderation/actions";
 import type { AdminGateContext } from "@/server/auth/admin-gate";
 import type { CommentStatus } from "@/types/content";
+
+const INITIAL_MODERATION_ACTION_STATE: ModerationActionState = {
+  status: "idle",
+  message: "",
+};
 
 type CommentModerationFormProps = {
   gate: AdminGateContext;
@@ -46,7 +51,7 @@ export function CommentModerationForm({
 }: CommentModerationFormProps) {
   const [state, action, isPending] = useActionState(
     setCommentModerationAction,
-    initialModerationActionState,
+    INITIAL_MODERATION_ACTION_STATE,
   );
   const disabled = !gate.canAccessAdmin || isPending;
 

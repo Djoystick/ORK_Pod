@@ -4,14 +4,19 @@ import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 
 import {
-  initialUpdateContentActionState,
   setContentStatusAction,
   updateContentAction,
+  type UpdateContentActionState,
 } from "@/app/admin/content/[id]/actions";
 import { AdminGateNotice } from "@/components/admin/admin-gate-notice";
 import { sanitizeSlug } from "@/lib/slug";
 import type { AdminGateContext } from "@/server/auth/admin-gate";
 import type { Category, Platform, ResolvedContentItem, Series } from "@/types/content";
+
+const INITIAL_UPDATE_CONTENT_ACTION_STATE: UpdateContentActionState = {
+  status: "idle",
+  message: "",
+};
 
 type EditContentFormProps = {
   gate: AdminGateContext;
@@ -33,11 +38,11 @@ export function EditContentForm({
   const [selectedCategory, setSelectedCategory] = useState<string>(item.category.slug);
   const [updateState, updateAction, isUpdatePending] = useActionState(
     updateContentAction,
-    initialUpdateContentActionState,
+    INITIAL_UPDATE_CONTENT_ACTION_STATE,
   );
   const [statusState, statusAction, isStatusPending] = useActionState(
     setContentStatusAction,
-    initialUpdateContentActionState,
+    INITIAL_UPDATE_CONTENT_ACTION_STATE,
   );
 
   const visibleSeries = useMemo(

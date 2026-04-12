@@ -11,11 +11,6 @@ export type ModerationActionState = {
   message: string;
 };
 
-export const initialModerationActionState: ModerationActionState = {
-  status: "idle",
-  message: "",
-};
-
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;

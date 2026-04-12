@@ -3,7 +3,12 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-import { initialSignInActionState, signInAction } from "@/app/auth/actions";
+import { signInAction, type SignInActionState } from "@/app/auth/actions";
+
+const INITIAL_SIGN_IN_ACTION_STATE: SignInActionState = {
+  status: "idle",
+  message: "",
+};
 
 type SignInFormProps = {
   nextPath: string;
@@ -11,7 +16,7 @@ type SignInFormProps = {
 
 export function SignInForm({ nextPath }: SignInFormProps) {
   const router = useRouter();
-  const [state, action, pending] = useActionState(signInAction, initialSignInActionState);
+  const [state, action, pending] = useActionState(signInAction, INITIAL_SIGN_IN_ACTION_STATE);
 
   useEffect(() => {
     if (state.status === "success" && state.redirectTo) {
@@ -62,4 +67,3 @@ export function SignInForm({ nextPath }: SignInFormProps) {
     </form>
   );
 }
-

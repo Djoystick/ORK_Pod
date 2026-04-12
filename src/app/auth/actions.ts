@@ -18,11 +18,6 @@ export type SignInActionState = {
   redirectTo?: string;
 };
 
-export const initialSignInActionState: SignInActionState = {
-  status: "idle",
-  message: "",
-};
-
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
@@ -137,4 +132,3 @@ export async function signOutAction(formData: FormData) {
 
   redirect(nextPath);
 }
-

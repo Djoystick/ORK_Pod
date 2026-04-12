@@ -10,11 +10,6 @@ export type CreateManualActionState = {
   slug?: string;
 };
 
-export const initialCreateManualActionState: CreateManualActionState = {
-  status: "idle",
-  message: "",
-};
-
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;

@@ -14,11 +14,6 @@ export type UpdateContentActionState = {
   slug?: string;
 };
 
-export const initialUpdateContentActionState: UpdateContentActionState = {
-  status: "idle",
-  message: "",
-};
-
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;

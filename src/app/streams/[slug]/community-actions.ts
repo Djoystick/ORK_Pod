@@ -17,19 +17,9 @@ export type CommunityCommentActionState = {
   message: string;
 };
 
-export const initialCommunityCommentActionState: CommunityCommentActionState = {
-  status: "idle",
-  message: "",
-};
-
 export type CommunityReactionActionState = {
   status: "idle" | "success" | "error";
   message: string;
-};
-
-export const initialCommunityReactionActionState: CommunityReactionActionState = {
-  status: "idle",
-  message: "",
 };
 
 function getErrorMessage(error: unknown) {
