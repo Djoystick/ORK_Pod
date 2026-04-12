@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useActionState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import {
@@ -50,6 +51,7 @@ export function CommunityBlock({
   communityWrite,
 }: CommunityBlockProps) {
   const router = useRouter();
+  const signInHref = `/auth/sign-in?next=${encodeURIComponent(`/streams/${slug}`)}`;
   const [reactionState, reactionAction, reactionPending] = useActionState(
     setReactionAction,
     initialCommunityReactionActionState,
@@ -116,7 +118,11 @@ export function CommunityBlock({
         ) : null}
         {!communityWrite.canWrite ? (
           <p className="text-xs text-amber-300">
-            Реакции доступны только после авторизации в текущем write-режиме.
+            Реакции доступны только после авторизации в текущем write-режиме.{" "}
+            <Link href={signInHref} className="underline hover:text-amber-200">
+              Войти
+            </Link>
+            .
           </p>
         ) : null}
       </div>
@@ -186,7 +192,11 @@ export function CommunityBlock({
           </button>
           {!communityWrite.canWrite ? (
             <p className="text-xs text-amber-300">
-              Отправка комментариев отключена до выполнения требований write-доступа.
+              Отправка комментариев отключена до выполнения требований write-доступа.{" "}
+              <Link href={signInHref} className="underline hover:text-amber-200">
+                Войти
+              </Link>
+              .
             </p>
           ) : null}
           {commentState.status !== "idle" ? (

@@ -3,38 +3,41 @@
 ## 1. Цель
 Практический чеклист для вывода ORKPOD Archive в live на Vercel с Supabase backend.
 
-Документ описывает:
-1. Что нужно настроить в Vercel.
-2. Какие env переменные обязательны.
+Документ отвечает на вопросы:
+1. Что обязательно настроить в Vercel.
+2. Какие env переменные требуются.
 3. Что проверить сразу после деплоя.
-4. Какие риски остаются до полного production hardening.
+4. Как проверить auth/admin/community контуры после Phase 09.
 
 ## 2. Пререквизиты
-1. Репозиторий в git с актуальными миграциями Supabase.
-2. Live Supabase project создан.
-3. Миграции применены к live Supabase (см. `docs/SUPABASE_SETUP.md`).
-4. В `admin_users` есть хотя бы один активный админ.
+1. Репозиторий содержит актуальные миграции Supabase.
+2. В live Supabase проекте миграции применены.
+3. Есть хотя бы один auth-пользователь для входа.
+4. Настроен admin lookup:
+   - `ADMIN_ALLOWED_*`, и/или
+   - `admin_users`.
 
 ## 3. Vercel проект
-1. Import repository в Vercel.
-2. Framework preset: `Next.js`.
+1. Framework preset: `Next.js`.
+2. Install command: `npm install`.
 3. Build command: `npm run build`.
-4. Install command: `npm install`.
-5. Output: стандартный Next.js output.
+4. Runtime: Node.js (в проекте используется server runtime в App Router).
 
-## 4. Обязательные Environment Variables (Vercel)
+## 4. Environment Variables (Vercel)
+
 ### 4.1 Supabase
 1. `NEXT_PUBLIC_SUPABASE_URL`
 2. `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 3. `SUPABASE_SERVICE_ROLE_KEY`
 
-### 4.2 Auth / Access strategy
+### 4.2 Auth / access strategy
 1. `ORKPOD_AUTH_STRATEGY=supabase_auth`
 2. `ORKPOD_COMMUNITY_WRITE_MODE=supabase_auth_required`
-3. `ORKPOD_SUPABASE_ACCESS_TOKEN_COOKIE=orkpod_supabase_access_token` (или ваше имя cookie)
-4. `ADMIN_ALLOWED_EMAILS` и/или `ADMIN_ALLOWED_USER_IDS`
+3. `ORKPOD_SUPABASE_ACCESS_TOKEN_COOKIE=orkpod_supabase_access_token` (или кастом)
+4. `ORKPOD_SUPABASE_REFRESH_TOKEN_COOKIE=orkpod_supabase_refresh_token` (или кастом)
+5. `ADMIN_ALLOWED_EMAILS` и/или `ADMIN_ALLOWED_USER_IDS` (если используется env allowlist)
 
-### 4.3 Production safety flags
+### 4.3 Production safety
 1. `ALLOW_BOOTSTRAP_ADMIN_IN_PRODUCTION=false`
 2. `ALLOW_GUEST_COMMUNITY_WRITES_IN_PROD=false`
 3. `ALLOW_FALLBACK_IN_PRODUCTION=false`
@@ -44,59 +47,53 @@
 1. `YOUTUBE_INGESTION_MAX_ITEMS_PER_SOURCE`
 2. `INGESTION_LOCK_TTL_MS`
 
-## 5. Runtime caveats (важно)
-1. В проекте зафиксирован `runtime = "nodejs"` на App Router layout.
-2. Fallback stores используют filesystem и предназначены только для dev/fallback.
-3. На Vercel filesystem не должен быть relied-on как persistent storage.
-4. Production deployment должен идти через Supabase path, а не через fallback.
+## 5. Post-deploy smoke checklist
 
-## 6. Post-deploy smoke checks
-### 6.0 Preflight env check
-Перед деплоем можно запустить локальную проверку обязательных production env:
-```powershell
-powershell -File scripts/check-prod-env.ps1
-```
+### 5.1 Технический preflight
+1. Локально перед деплоем:
+   - `powershell -File scripts/check-prod-env.ps1`
 
-### 6.1 Быстрый HTTP smoke
-Используйте скрипт:
-```powershell
-powershell -File scripts/live-smoke-check.ps1 -BaseUrl https://<your-domain>
-```
+### 5.2 HTTP smoke
+1. После деплоя:
+   - `powershell -File scripts/live-smoke-check.ps1 -BaseUrl https://<your-domain>`
 
-### 6.2 Ручной functional smoke
-Проверьте:
+### 5.3 Функциональные проверки
 1. Public:
    - `/`
    - `/streams`
    - `/streams/[slug]`
    - `/about`
-2. Admin:
-   - `/admin` и подстраницы открываются
-   - write-операции без авторизации не проходят
-   - write-операции с авторизованным админом проходят
-3. Community:
-   - comments/reactions write работают только под выбранной auth policy
-4. Moderation:
-   - approve/hide/reject доступны только admin-пользователю
-5. Ingestion:
-   - source sync trigger работает под admin-правами
-6. Visibility:
-   - draft не утекают в public
-   - published видимы публично
+2. Auth:
+   - видно кнопку `Войти` в header
+   - `/auth/sign-in` открывается
+   - успешный вход меняет header на состояние с `Выйти`
+3. Admin recognition:
+   - allowlisted/admin_users пользователь получает admin-доступ
+   - не-admin пользователь не получает write-доступ
+4. Community:
+   - комментарии/реакции в production требуют auth в соответствии с policy
+5. Moderation:
+   - approve/hide/reject доступны только admin
+6. Ingestion:
+   - sync actions работают только для admin
+7. Visibility:
+   - draft не видны публично
+   - published доступны в архиве и detail
 
-## 7. Что не считается завершенным автоматически
-1. Сам факт успешного `vercel deploy` не подтверждает корректность RLS/policies.
-2. Без проверки реального auth/session flow deployment не считается production-safe.
-3. Без post-deploy smoke и проверок прав доступа релиз не завершен.
+## 6. Важная граница production vs fallback
+1. На Vercel нельзя полагаться на локальные fallback файлы как на постоянное хранилище.
+2. Production-доступ должен идти через Supabase path.
+3. Fallback — только dev/аварийный контур, не security-модель для live.
 
-## 8. Риски и ограничения
-1. Если allowlist admin не задан, admin write paths будут заблокированы.
-2. Если cookie сессии Supabase не настроена корректно, `supabase_auth` write-path не заработает.
-3. Включение bootstrap/fallback флагов в production повышает риск небезопасного поведения.
+## 7. Первый контент после деплоя
+Если live архив пуст:
+1. Войдите под admin-пользователем.
+2. Откройте `/admin`.
+3. Выполните `Bootstrap published`.
+4. Проверьте, что появились записи в `/streams` и открываются detail pages.
 
-## 9. Рекомендуемый rollout порядок
-1. Применить Supabase миграции и заполнить `admin_users`.
-2. Настроить env vars в Vercel.
-3. Deploy.
-4. Прогнать smoke-check script и ручной functional checklist.
-5. Зафиксировать результаты в release notes/runbook.
+## 8. Что не считается автоматически завершенным
+1. Успешный `vercel deploy` сам по себе не подтверждает корректность RLS/policies.
+2. Без реальной проверки входа/выхода и прав доступа релиз нельзя считать production-validated.
+3. Без smoke и функционального прогона релиз не завершен операционно.
+

@@ -4,6 +4,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { getSupabaseAccessTokenCookieName } from "@/server/auth/supabase-session-cookies";
 
 export interface SupabaseAuthPrincipal {
   userId: string;
@@ -14,10 +15,6 @@ export interface SupabaseAuthResolution {
   principal: SupabaseAuthPrincipal | null;
   source: "cookie_token";
   error?: string;
-}
-
-function getAccessTokenCookieName() {
-  return process.env.ORKPOD_SUPABASE_ACCESS_TOKEN_COOKIE?.trim() || "orkpod_supabase_access_token";
 }
 
 const resolveSupabasePrincipalCached = cache(async (): Promise<SupabaseAuthResolution> => {
@@ -31,7 +28,7 @@ const resolveSupabasePrincipalCached = cache(async (): Promise<SupabaseAuthResol
   }
 
   const cookieStore = await cookies();
-  const token = cookieStore.get(getAccessTokenCookieName())?.value?.trim();
+  const token = cookieStore.get(getSupabaseAccessTokenCookieName())?.value?.trim();
   if (!token) {
     return {
       principal: null,

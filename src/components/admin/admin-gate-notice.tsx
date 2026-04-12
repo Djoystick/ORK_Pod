@@ -18,6 +18,9 @@ export function AdminGateNotice({ gate }: AdminGateNoticeProps) {
       <p className="mt-2 text-xs opacity-80">
         strategy: {gate.strategy} · mode: {gate.mode}
       </p>
+      {gate.adminMatchSource ? (
+        <p className="text-xs opacity-80">admin source: {gate.adminMatchSource}</p>
+      ) : null}
       {gate.principal ? (
         <p className="text-xs opacity-80">
           principal: {gate.principal.email ?? gate.principal.userId}

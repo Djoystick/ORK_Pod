@@ -1,6 +1,7 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { headers } from "next/headers";
 
+import { BootstrapPublishedForm } from "@/app/admin/bootstrap-published-form";
 import { AdminGateNotice } from "@/components/admin/admin-gate-notice";
 import { getAdminOverviewData } from "@/server/services/admin-content-service";
 
@@ -23,6 +24,10 @@ export default async function AdminPage() {
   return (
     <section className="space-y-4">
       <AdminGateNotice gate={gate} />
+      <BootstrapPublishedForm
+        gate={gate}
+        publishedCount={stats?.statusCounts.published ?? 0}
+      />
 
       <div className="grid gap-4 md:grid-cols-7">
         <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -135,3 +140,4 @@ export default async function AdminPage() {
     </section>
   );
 }
+

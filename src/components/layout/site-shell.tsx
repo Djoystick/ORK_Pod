@@ -1,9 +1,19 @@
 import type { PropsWithChildren } from "react";
+import { headers } from "next/headers";
 
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { resolveAdminGateContext } from "@/server/auth/admin-gate";
+import { resolveSupabasePrincipal } from "@/server/auth/supabase-auth";
 
-export function SiteShell({ children }: PropsWithChildren) {
+export async function SiteShell({ children }: PropsWithChildren) {
+  const host = (await headers()).get("host") ?? "";
+  const [authResolution, adminGate] = await Promise.all([
+    resolveSupabasePrincipal(),
+    resolveAdminGateContext(host),
+  ]);
+
   return (
     <div className="relative min-h-screen overflow-x-clip bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0">
@@ -13,7 +23,15 @@ export function SiteShell({ children }: PropsWithChildren) {
       </div>
 
       <div className="relative z-10 flex min-h-screen flex-col">
-        <SiteHeader />
+        <SiteHeader
+          authState={{
+            isSupabaseConfigured: Boolean(getSupabasePublicConfig()),
+            isSignedIn: Boolean(authResolution.principal),
+            principalEmail: authResolution.principal?.email ?? null,
+            canAccessAdmin: adminGate.canAccessAdmin,
+            adminMode: adminGate.mode,
+          }}
+        />
         <main className="flex-1 pt-10">{children}</main>
         <SiteFooter />
       </div>

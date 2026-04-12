@@ -1,10 +1,12 @@
-﻿import "server-only";
+import "server-only";
 
+import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { resolveSupabasePrincipal, type SupabaseAuthPrincipal } from "@/server/auth/supabase-auth";
 import { allowBootstrapAdminInProduction } from "@/server/config/runtime-safety";
 
 export type AuthStrategy = "local_bootstrap" | "supabase_auth";
 export type AdminGateMode = "disabled" | "local_dev" | "bootstrap_key" | "supabase_auth";
+export type AdminMatchSource = "allowlist" | "admin_users";
 
 export interface AdminGateContext {
   strategy: AuthStrategy;
@@ -14,7 +16,14 @@ export interface AdminGateContext {
   requiresSupabaseAuth: boolean;
   message: string;
   principal: SupabaseAuthPrincipal | null;
+  adminMatchSource?: AdminMatchSource;
 }
+
+type AdminUsersLookupResult = {
+  matched: boolean;
+  tableChecked: boolean;
+  error?: string;
+};
 
 function isLocalHost(host: string) {
   return host.includes("localhost") || host.includes("127.0.0.1");
@@ -44,21 +53,78 @@ function isAllowedInLocalDev(host: string) {
   return allow && process.env.NODE_ENV !== "production" && isLocalHost(host);
 }
 
-function isAdminPrincipalAllowed(principal: SupabaseAuthPrincipal | null) {
-  if (!principal) return false;
+function isAdminPrincipalInAllowlist(principal: SupabaseAuthPrincipal | null) {
+  if (!principal) {
+    return {
+      matched: false,
+      configured: false,
+    };
+  }
 
-  const allowedEmails = parseCsvSet(process.env.ADMIN_ALLOWED_EMAILS);
+  const allowedEmailsRaw = parseCsvSet(process.env.ADMIN_ALLOWED_EMAILS);
   const allowedUserIds = parseCsvSet(process.env.ADMIN_ALLOWED_USER_IDS);
+  const allowedEmails = new Set(Array.from(allowedEmailsRaw).map((entry) => entry.toLowerCase()));
+  const configured = allowedEmails.size > 0 || allowedUserIds.size > 0;
 
-  if (allowedEmails.size === 0 && allowedUserIds.size === 0) {
-    return false;
+  if (!configured) {
+    return {
+      matched: false,
+      configured: false,
+    };
   }
 
   if (principal.email && allowedEmails.has(principal.email.toLowerCase())) {
-    return true;
+    return {
+      matched: true,
+      configured: true,
+    };
   }
 
-  return allowedUserIds.has(principal.userId);
+  return {
+    matched: allowedUserIds.has(principal.userId),
+    configured: true,
+  };
+}
+
+async function lookupAdminUserByPrincipal(
+  principal: SupabaseAuthPrincipal | null,
+): Promise<AdminUsersLookupResult> {
+  if (!principal) {
+    return {
+      matched: false,
+      tableChecked: false,
+    };
+  }
+
+  const client = createSupabaseServiceClient();
+  if (!client) {
+    return {
+      matched: false,
+      tableChecked: false,
+      error: "Supabase service client is not configured.",
+    };
+  }
+
+  const result = await client
+    .from("admin_users")
+    .select("id")
+    .eq("user_id", principal.userId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (result.error) {
+    return {
+      matched: false,
+      tableChecked: false,
+      error: result.error.message,
+    };
+  }
+
+  return {
+    matched: Boolean(result.data?.id),
+    tableChecked: true,
+  };
 }
 
 export async function resolveAdminGateContext(host: string): Promise<AdminGateContext> {
@@ -120,23 +186,12 @@ export async function resolveAdminGateContext(host: string): Promise<AdminGateCo
 
   const supabaseAuth = await resolveSupabasePrincipal();
   const principal = supabaseAuth.principal;
-  const isAllowed = isAdminPrincipalAllowed(principal);
-  const allowlistConfigured =
-    parseCsvSet(process.env.ADMIN_ALLOWED_EMAILS).size > 0 ||
-    parseCsvSet(process.env.ADMIN_ALLOWED_USER_IDS).size > 0;
+  const allowlistMatch = isAdminPrincipalInAllowlist(principal);
+  const adminUsersLookup = await lookupAdminUserByPrincipal(principal);
 
-  if (!allowlistConfigured) {
-    return {
-      strategy,
-      mode: "disabled",
-      canAccessAdmin: false,
-      requiresKeyForWrites: false,
-      requiresSupabaseAuth: true,
-      principal,
-      message:
-        "Supabase auth mode активен, но не задан admin allowlist (ADMIN_ALLOWED_EMAILS/ADMIN_ALLOWED_USER_IDS). Admin write paths заблокированы.",
-    };
-  }
+  const matchedByAllowlist = allowlistMatch.matched;
+  const matchedByAdminUsers = adminUsersLookup.matched;
+  const adminLookupConfigured = allowlistMatch.configured || adminUsersLookup.tableChecked;
 
   if (!principal) {
     return {
@@ -146,12 +201,41 @@ export async function resolveAdminGateContext(host: string): Promise<AdminGateCo
       requiresKeyForWrites: false,
       requiresSupabaseAuth: true,
       principal: null,
-      message:
-        "Supabase auth mode: требуется валидная пользовательская сессия. Без нее admin write paths недоступны.",
+      message: adminLookupConfigured
+        ? "Supabase auth mode: требуется валидная пользовательская сессия. Без нее admin write paths недоступны."
+        : "Supabase auth mode: требуется сессия, и должен быть настроен хотя бы один admin lookup (env allowlist или таблица admin_users).",
     };
   }
 
-  if (!isAllowed) {
+  if (matchedByAllowlist) {
+    return {
+      strategy,
+      mode: "supabase_auth",
+      canAccessAdmin: true,
+      requiresKeyForWrites: false,
+      requiresSupabaseAuth: true,
+      principal,
+      adminMatchSource: "allowlist",
+      message:
+        "Supabase auth mode: доступ подтвержден через ADMIN_ALLOWED_EMAILS/ADMIN_ALLOWED_USER_IDS.",
+    };
+  }
+
+  if (matchedByAdminUsers) {
+    return {
+      strategy,
+      mode: "supabase_auth",
+      canAccessAdmin: true,
+      requiresKeyForWrites: false,
+      requiresSupabaseAuth: true,
+      principal,
+      adminMatchSource: "admin_users",
+      message:
+        "Supabase auth mode: доступ подтвержден через таблицу admin_users (is_active=true).",
+    };
+  }
+
+  if (!adminLookupConfigured) {
     return {
       strategy,
       mode: "disabled",
@@ -159,19 +243,21 @@ export async function resolveAdminGateContext(host: string): Promise<AdminGateCo
       requiresKeyForWrites: false,
       requiresSupabaseAuth: true,
       principal,
-      message: "Пользователь Supabase аутентифицирован, но не входит в admin allowlist.",
+      message: adminUsersLookup.error
+        ? `Admin lookup не готов: ${adminUsersLookup.error}`
+        : "Admin lookup не настроен: заполните ADMIN_ALLOWED_EMAILS/ADMIN_ALLOWED_USER_IDS или добавьте запись в admin_users.",
     };
   }
 
   return {
     strategy,
-    mode: "supabase_auth",
-    canAccessAdmin: true,
+    mode: "disabled",
+    canAccessAdmin: false,
     requiresKeyForWrites: false,
     requiresSupabaseAuth: true,
     principal,
     message:
-      "Supabase auth mode: доступ подтвержден по allowlist. Это основной production-направленный путь для admin write-операций.",
+      "Пользователь аутентифицирован, но не найден в ADMIN_ALLOWED_* и не имеет активной записи в admin_users.",
   };
 }
 
@@ -198,3 +284,4 @@ export async function assertAdminWriteAccess({
 
   return gate;
 }
+

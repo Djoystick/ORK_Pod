@@ -11,7 +11,8 @@ export default function AdminLayout({ children }: PropsWithChildren) {
         <h1 className="font-display text-3xl text-zinc-100">ORKPOD Backoffice (V1)</h1>
         <p className="mt-2 text-sm text-zinc-300">
           Временная административная зона контент-платформы: CMS, source registry, ingestion,
-          модерация комментариев и базовая community-операционка. Production-auth и RLS еще не внедрены.
+          модерация комментариев и базовая community-операционка. Auth/RLS foundation уже
+          внедрены, но финальная live hardening-валидация продолжается.
         </p>
         <nav className="mt-4 flex flex-wrap gap-2">
           <Link
