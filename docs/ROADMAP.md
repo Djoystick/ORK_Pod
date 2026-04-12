@@ -1,12 +1,12 @@
-# ORKPOD Archive Roadmap (после Phase 14B)
+# ORKPOD Archive Roadmap (после Phase 15)
 
 ## Текущее состояние продукта
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
 2. Брендинг (green ork, icon, hero background) сохранён.
-3. Auth/admin/community flow остаются рабочими без изменений архитектуры.
-4. Фазы 11-14 по automation (enrichment, auto-mapping, publish/review rules, API-backed path) сохранены.
-5. Phase 14A закрыл production-блокер EROFS для ingestion locks.
-6. Phase 14B включил runtime parity: Supabase ingestion path больше не заглушка и выполняет реальные sync/import runs через production-ветку репозитория.
+3. Auth/admin/community flow остаются рабочими без архитектурной перестройки.
+4. Фазы 11-14B по automation (enrichment, auto-mapping, publish/review rules, API-backed ingestion, runtime parity) сохранены.
+5. В Phase 15 добавлен presentation-слой для импортированных описаний YouTube: описание на detail-странице больше не выводится одним неструктурированным блоком.
+6. В админке устранены найденные UTF-8/mojibake артефакты в ключевых формах/фильтрах управления контентом.
 
 ## Статус фаз
 1. Phase 01 — выполнено.
@@ -27,29 +27,27 @@
 16. Phase 13 — выполнено.
 17. Phase 14 — выполнено.
 18. Phase 14A — выполнено.
-19. Phase 14B — выполнено (live ingestion runtime parity + API-primary activation path).
+19. Phase 14B — выполнено.
+20. Phase 15 — выполнено (структурирование импортированных описаний + UTF-8 cleanup в admin content surfaces).
 
-## Что сделано в Phase 14B
-1. Найден и устранён root cause fallback-warning на `/admin/sources`: в `SupabaseContentRepository` ingestion-методы были заглушками и всегда бросали “runtime not active”.
-2. Реализован рабочий Supabase ingestion runtime path:
-   - `runSourceSync`
-   - `runAllActiveSourceSync`
-   - `getImportRunById`
-   - `listImportRuns`
-3. Включено сохранение telemetry в `import_runs` и `import_run_items` без fallback-by-default.
-4. Сохранены safety-гарантии:
-   - dedupe по `external_source_id`
-   - anti-concurrency/sync-all guards (через существующий lock/job слой)
-   - rerun/retry_failed_items логика
-   - safe draft/review defaults
-   - защита manual edits через ingestion snapshot/override checks
+## Что сделано в Phase 15
+1. Подтверждена причина «стены текста» в detail view:
+   - ingestion-нормализация исторически сплющивает переносы (`normalizeText(stripHtml(...))`);
+   - detail-рендер выводил импортированное описание одним `<p>`.
+2. Добавлен безопасный слой отображения для импортированных описаний:
+   - поддержка абзацев;
+   - выделение list/timestamp-like блоков;
+   - более аккуратный вывод URL-heavy блоков;
+   - linkify без потери исходных ссылок.
+3. Добавлен UX для длинных описаний: `Показать полностью / Свернуть описание`.
+4. Исправлены найденные mojibake-строки в admin content UI (фильтры/лейблы/кнопки) на корректный UTF-8 русский текст.
 
 ## Что остаётся перед SEO/performance/indexing
-1. Подтвердить post-deploy на live, что `/admin/sources` больше не показывает runtime fallback warning в штатной production-конфигурации.
-2. Подтвердить на live end-to-end source sync с реальным `YOUTUBE_DATA_API_KEY` и проверить telemetry (`/admin/imports`, `/admin/content`).
-3. После стабилизации ingestion-контура переходить к SEO/performance/indexing.
+1. Подтвердить post-deploy на live, что detail-страницы с длинными импортированными YouTube-описаниями читаемы на реальных данных.
+2. При необходимости откалибровать presentation-эвристики на дополнительных импортированных кейсах (очень длинные promo-блоки, плотные timestamp-списки).
+3. После стабилизации UX-слоя переходить к SEO/performance/indexing.
 
 ## Следующие roadmap-блоки
 1. SEO / performance / indexing.
 2. Comment reputation system.
-3. При необходимости: углубление automation infra для масштабного backfill/операций.
+3. Опционально: дальнейший UX/discoverability polish без изменения ingestion-архитектуры.

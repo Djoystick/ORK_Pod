@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { headers } from "next/headers";
 
 import { AdminGateNotice } from "@/components/admin/admin-gate-notice";
@@ -152,29 +152,29 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
     <section className="space-y-4">
       <div>
         <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">CMS</p>
-        <h2 className="font-display text-3xl text-zinc-100">РљРѕРЅС‚РµРЅС‚</h2>
+        <h2 className="font-display text-3xl text-zinc-100">Контент</h2>
       </div>
 
       <AdminGateNotice gate={gate} />
 
       <form className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-8">
         <label className="grid gap-1 text-xs text-zinc-400">
-          РџРѕРёСЃРє
+          Поиск
           <input
             name="q"
             defaultValue={filters.q}
-            placeholder="Р·Р°РіРѕР»РѕРІРѕРє, slug, РєР°С‚РµРіРѕСЂРёСЏ..."
+            placeholder="заголовок, slug, категория..."
             className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/70"
           />
         </label>
         <label className="grid gap-1 text-xs text-zinc-400">
-          РЎС‚Р°С‚СѓСЃ
+          Статус
           <select
             name="status"
             defaultValue={filters.status}
             className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/70"
           >
-            <option value="all">Р’СЃРµ</option>
+            <option value="all">Все</option>
             <option value="draft">draft</option>
             <option value="published">published</option>
             <option value="archived">archived</option>
@@ -187,19 +187,19 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
             defaultValue={filters.sourceType}
             className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/70"
           >
-            <option value="all">Р’СЃРµ</option>
+            <option value="all">Все</option>
             <option value="manual">manual</option>
             <option value="imported">imported</option>
           </select>
         </label>
         <label className="grid gap-1 text-xs text-zinc-400">
-          РџР»Р°С‚С„РѕСЂРјР°
+          Платформа
           <select
             name="platform"
             defaultValue={filters.platform}
             className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/70"
           >
-            <option value="all">Р’СЃРµ</option>
+            <option value="all">Все</option>
             {taxonomy.platforms.map((platform) => (
               <option key={platform.id} value={platform.slug}>
                 {platform.title}
@@ -208,13 +208,13 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
           </select>
         </label>
         <label className="grid gap-1 text-xs text-zinc-400">
-          РљР°С‚РµРіРѕСЂРёСЏ
+          Категория
           <select
             name="category"
             defaultValue={filters.category}
             className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-300/70"
           >
-            <option value="all">Р’СЃРµ</option>
+            <option value="all">Все</option>
             {taxonomy.categories.map((category) => (
               <option key={category.id} value={category.slug}>
                 {category.title}
@@ -269,14 +269,14 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
             type="submit"
             className="h-10 rounded-lg bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200"
           >
-            РџСЂРёРјРµРЅРёС‚СЊ С„РёР»СЊС‚СЂС‹
+            Применить фильтры
           </button>
         </div>
       </form>
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
         <p className="text-sm text-zinc-300">
-          РќР°Р№РґРµРЅРѕ: <span className="font-semibold text-zinc-100">{items.length}</span>
+          Найдено: <span className="font-semibold text-zinc-100">{items.length}</span>
         </p>
       </div>
 
@@ -284,13 +284,13 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-white/10 text-xs uppercase tracking-[0.12em] text-zinc-500">
             <tr>
-              <th className="px-4 py-3">Р—Р°РіРѕР»РѕРІРѕРє</th>
-              <th className="px-4 py-3">РЎС‚Р°С‚СѓСЃ</th>
-              <th className="px-4 py-3">РСЃС‚РѕС‡РЅРёРє</th>
-              <th className="px-4 py-3">РљР°С‚РµРіРѕСЂРёСЏ</th>
-              <th className="px-4 py-3">РџР»Р°С‚С„РѕСЂРјР°</th>
+              <th className="px-4 py-3">Заголовок</th>
+              <th className="px-4 py-3">Статус</th>
+              <th className="px-4 py-3">Источник</th>
+              <th className="px-4 py-3">Категория</th>
+              <th className="px-4 py-3">Платформа</th>
               <th className="px-4 py-3">Auto-map</th>
-              <th className="px-4 py-3">Р”Р°С‚Р°</th>
+              <th className="px-4 py-3">Дата</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -322,7 +322,7 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
                         {mapping ? (
                           <p className="text-[11px] text-zinc-400">
                             {mapping.categorySlug ?? "category?"}
-                            {mapping.seriesSlug ? ` / ${mapping.seriesSlug}` : ""} В· tags{" "}
+                            {mapping.seriesSlug ? ` / ${mapping.seriesSlug}` : ""} · tags{" "}
                             {mapping.tagCount}
                             {mapping.fallbackUsed ? " · fallback" : ""}
                             {mapping.metadataReliability
@@ -337,7 +337,7 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
                         ) : null}
                       </div>
                     ) : (
-                      <span className="text-xs text-zinc-500">вЂ”</span>
+                      <span className="text-xs text-zinc-500">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-zinc-300">{formatRuDate(item.publishedAt)}</td>
@@ -346,7 +346,7 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
                       href={`/admin/content/${item.id}`}
                       className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-white/35"
                     >
-                      Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ
+                      Редактировать
                     </Link>
                   </td>
                 </tr>
@@ -355,7 +355,7 @@ export default async function AdminContentPage({ searchParams }: AdminContentPag
             {items.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-zinc-400">
-                  РќРёС‡РµРіРѕ РЅРµ РЅР°Р№РґРµРЅРѕ РїРѕ С‚РµРєСѓС‰РёРј С„РёР»СЊС‚СЂР°Рј.
+                  Ничего не найдено по текущим фильтрам.
                 </td>
               </tr>
             ) : null}

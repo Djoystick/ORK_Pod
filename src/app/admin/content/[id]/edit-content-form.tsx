@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
@@ -177,7 +177,7 @@ export function EditContentForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm text-zinc-300">
-            Р—Р°РіРѕР»РѕРІРѕРє *
+            Заголовок *
             <input
               required
               name="title"
@@ -237,7 +237,7 @@ export function EditContentForm({
 
         <div className="grid gap-4 md:grid-cols-3">
           <label className="grid gap-2 text-sm text-zinc-300">
-            РљР°С‚РµРіРѕСЂРёСЏ *
+            Категория *
             <select
               required
               name="category"
@@ -254,13 +254,13 @@ export function EditContentForm({
           </label>
 
           <label className="grid gap-2 text-sm text-zinc-300">
-            РЎРµСЂРёСЏ
+            Серия
             <select
               name="series"
               defaultValue={item.series?.slug ?? ""}
               className="h-11 rounded-xl border border-white/15 bg-black/30 px-3 text-zinc-100 outline-none transition focus:border-cyan-300/70"
             >
-              <option value="">Р‘РµР· СЃРµСЂРёРё</option>
+              <option value="">Без серии</option>
               {visibleSeries.map((entry) => (
                 <option key={entry.id} value={entry.slug}>
                   {entry.title}
@@ -270,7 +270,7 @@ export function EditContentForm({
           </label>
 
           <label className="grid gap-2 text-sm text-zinc-300">
-            РџР»Р°С‚С„РѕСЂРјР° *
+            Платформа *
             <select
               required
               name="platform"
@@ -298,7 +298,7 @@ export function EditContentForm({
           </label>
 
           <label className="grid gap-2 text-sm text-zinc-300">
-            Р”Р°С‚Р° РїСѓР±Р»РёРєР°С†РёРё
+            Дата публикации
             <input
               name="publishedAt"
               type="date"
@@ -308,7 +308,7 @@ export function EditContentForm({
           </label>
 
           <label className="grid gap-2 text-sm text-zinc-300">
-            РЎС‚Р°С‚СѓСЃ
+            Статус
             <select
               name="status"
               defaultValue={item.status ?? "draft"}
@@ -404,7 +404,7 @@ export function EditContentForm({
 
         {gate.requiresKeyForWrites ? (
           <label className="grid gap-2 text-sm text-zinc-300">
-            Bootstrap РєР»СЋС‡ *
+            Bootstrap ключ *
             <input
               required
               name="bootstrapKey"
@@ -427,7 +427,7 @@ export function EditContentForm({
               <span>
                 {" "}
                 <Link href={`/streams/${updateState.slug}`} className="underline underline-offset-2">
-                  РћС‚РєСЂС‹С‚СЊ РїСѓР±Р»РёС‡РЅСѓСЋ СЃС‚СЂР°РЅРёС†Сѓ
+                  Открыть публичную страницу
                 </Link>
               </span>
             ) : null}
@@ -439,7 +439,7 @@ export function EditContentForm({
           disabled={isDisabled || isUpdatePending}
           className="h-11 rounded-xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isUpdatePending ? "РЎРѕС…СЂР°РЅРµРЅРёРµ..." : "РЎРѕС…СЂР°РЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ"}
+          {isUpdatePending ? "Сохранение..." : "Сохранить изменения"}
         </button>
       </form>
 
@@ -447,7 +447,7 @@ export function EditContentForm({
         <input type="hidden" name="id" value={item.id} />
         {gate.requiresKeyForWrites ? (
           <label className="mb-3 grid gap-2 text-sm text-zinc-300">
-            Bootstrap РєР»СЋС‡ *
+            Bootstrap ключ *
             <input
               required
               name="bootstrapKey"

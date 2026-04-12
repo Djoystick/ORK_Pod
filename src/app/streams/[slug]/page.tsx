@@ -1,8 +1,9 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ArchiveCard } from "@/components/archive/archive-card";
+import { ImportedDescription } from "@/components/archive/imported-description";
 import { CommunityBlock } from "@/components/community/community-block";
 import { Reveal } from "@/components/motion/reveal";
 import { Container } from "@/components/shared/container";
@@ -75,7 +76,11 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
               {item.durationMinutes > 0 ? `${item.durationMinutes} мин` : "длительность TBD"} ·{" "}
               {item.series?.title ?? "Без серии"}
             </p>
-            <p className="max-w-3xl text-zinc-300">{item.description}</p>
+            {item.sourceType === "imported" ? (
+              <ImportedDescription text={item.body?.trim() || item.description} />
+            ) : (
+              <p className="max-w-3xl text-zinc-300">{item.description}</p>
+            )}
           </div>
         </section>
       </Reveal>
