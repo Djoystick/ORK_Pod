@@ -1,17 +1,48 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 
 import { SiteShell } from "@/components/layout/site-shell";
+import { getDefaultSocialImageUrl, getSiteMetadataBase } from "@/lib/seo";
 import "./globals.css";
 
 export const runtime = "nodejs";
 
+const rootDescription =
+  "Современный архив и каталог записей Orkpod: категории, фильтры, серии и страницы выпусков.";
+
 export const metadata: Metadata = {
+  metadataBase: getSiteMetadataBase(),
   title: {
     default: "ORKPOD Archive",
     template: "%s · ORKPOD Archive",
   },
-  description:
-    "Современный архив и каталог записей Orkpod: категории, фильтры, серии и страницы выпусков.",
+  description: rootDescription,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "ORKPOD Archive",
+    locale: "ru_RU",
+    title: "ORKPOD Archive",
+    description: rootDescription,
+    url: "/",
+    images: [
+      {
+        url: getDefaultSocialImageUrl(),
+        alt: "ORKPOD Archive",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ORKPOD Archive",
+    description: rootDescription,
+    images: [getDefaultSocialImageUrl()],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   icons: {
     icon: "/branding/icon.jpg",
     shortcut: "/branding/icon.jpg",

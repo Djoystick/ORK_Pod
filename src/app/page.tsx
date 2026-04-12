@@ -1,19 +1,74 @@
-﻿import Image from "next/image";
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { ArchiveCard } from "@/components/archive/archive-card";
 import { CategoryOverview } from "@/components/home/category-overview";
 import { Reveal } from "@/components/motion/reveal";
 import { Container } from "@/components/shared/container";
+import {
+  getDefaultSocialImageUrl,
+  pickMetaDescription,
+  toAbsoluteSiteUrl,
+} from "@/lib/seo";
 import { getHomePageData } from "@/server/services/public-content-service";
 
 export const dynamic = "force-dynamic";
+
+const homeDescription = pickMetaDescription(
+  "Архив стримов и видеозаписей ORKPOD с фильтрами по категориям, сериям и платформам.",
+);
+
+export const metadata: Metadata = {
+  title: "Главная",
+  description: homeDescription,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    title: "ORKPOD Archive",
+    description: homeDescription,
+    url: "/",
+    images: [
+      {
+        url: getDefaultSocialImageUrl(),
+        alt: "ORKPOD Archive",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ORKPOD Archive",
+    description: homeDescription,
+    images: [getDefaultSocialImageUrl()],
+  },
+};
+
+const websiteStructuredData = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "ORKPOD Archive",
+  url: toAbsoluteSiteUrl("/"),
+  inLanguage: "ru-RU",
+  description: homeDescription,
+  potentialAction: {
+    "@type": "SearchAction",
+    target: `${toAbsoluteSiteUrl("/streams")}?q={search_term_string}`,
+    "query-input": "required name=search_term_string",
+  },
+};
 
 export default async function HomePage() {
   const { featuredItems, recentItems, categoryOverview } = await getHomePageData();
 
   return (
     <Container className="space-y-14 pb-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteStructuredData) }}
+      />
+
       <Reveal>
         <section className="relative overflow-hidden rounded-3xl border border-emerald-300/20 bg-[#0a1711] p-7 sm:p-10">
           <Image

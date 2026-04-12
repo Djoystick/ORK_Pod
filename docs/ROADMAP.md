@@ -1,12 +1,13 @@
-# ORKPOD Archive Roadmap (после Phase 15)
+# ORKPOD Archive Roadmap (после Phase 17)
 
 ## Текущее состояние продукта
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
 2. Брендинг (green ork, icon, hero background) сохранён.
-3. Auth/admin/community flow остаются рабочими без архитектурной перестройки.
-4. Фазы 11-14B по automation (enrichment, auto-mapping, publish/review rules, API-backed ingestion, runtime parity) сохранены.
-5. В Phase 15 добавлен presentation-слой для импортированных описаний YouTube: описание на detail-странице больше не выводится одним неструктурированным блоком.
-6. В админке устранены найденные UTF-8/mojibake артефакты в ключевых формах/фильтрах управления контентом.
+3. Auth/admin/community/ingestion flow остаются рабочими без архитектурной перестройки.
+4. Фазы 11-14B по automation (API-backed ingestion, exact tags, runtime parity) сохранены.
+5. Phase 15 завершён: структурирование импортированных описаний + UTF-8 cleanup.
+6. Phase 16 завершён: SEO / performance / indexing foundation (metadata, robots, sitemap, structured data).
+7. Phase 17 завершён: media/detail UX обновлён (embedded player над описанием + collapsible description).
 
 ## Статус фаз
 1. Phase 01 — выполнено.
@@ -28,26 +29,23 @@
 17. Phase 14 — выполнено.
 18. Phase 14A — выполнено.
 19. Phase 14B — выполнено.
-20. Phase 15 — выполнено (структурирование импортированных описаний + UTF-8 cleanup в admin content surfaces).
+20. Phase 15 — выполнено.
+21. Phase 16 — выполнено.
+22. Phase 17 — выполнено (media/detail player + collapsible description).
 
-## Что сделано в Phase 15
-1. Подтверждена причина «стены текста» в detail view:
-   - ingestion-нормализация исторически сплющивает переносы (`normalizeText(stripHtml(...))`);
-   - detail-рендер выводил импортированное описание одним `<p>`.
-2. Добавлен безопасный слой отображения для импортированных описаний:
-   - поддержка абзацев;
-   - выделение list/timestamp-like блоков;
-   - более аккуратный вывод URL-heavy блоков;
-   - linkify без потери исходных ссылок.
-3. Добавлен UX для длинных описаний: `Показать полностью / Свернуть описание`.
-4. Исправлены найденные mojibake-строки в admin content UI (фильтры/лейблы/кнопки) на корректный UTF-8 русский текст.
-
-## Что остаётся перед SEO/performance/indexing
-1. Подтвердить post-deploy на live, что detail-страницы с длинными импортированными YouTube-описаниями читаемы на реальных данных.
-2. При необходимости откалибровать presentation-эвристики на дополнительных импортированных кейсах (очень длинные promo-блоки, плотные timestamp-списки).
-3. После стабилизации UX-слоя переходить к SEO/performance/indexing.
+## Что сделано в Phase 17
+1. На detail page добавлен реальный embedded player для поддерживаемых источников (YouTube/Twitch), и он расположен выше описания.
+2. Для неподдерживаемых/непарсируемых ссылок реализован безопасный fallback без поломки страницы:
+   - показывается медиаблок с cover/thumbnail;
+   - сохраняется действие открытия внешнего источника.
+3. Описание вынесено в collapsible/expandable блок:
+   - стартовое состояние свернуто для более чистого первого экрана;
+   - полный текст доступен по раскрытию;
+   - structured imported description из Phase 15 сохранён.
+4. Внешние ссылки, теги, community comments/reactions блок и related-карточки сохранены.
 
 ## Следующие roadmap-блоки
-1. SEO / performance / indexing.
-2. Comment reputation system.
-3. Опционально: дальнейший UX/discoverability polish без изменения ingestion-архитектуры.
+1. Cover improvements (следующий слой улучшений медиа-представления).
+2. Admin bulk publish для publish-ready элементов.
+3. Comment reputation system.
+4. Большой UI pass, вдохновлённый Pixabay (позже отдельной фазой).

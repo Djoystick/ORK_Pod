@@ -11,6 +11,11 @@ import { resolveSupabasePrincipal } from "@/server/auth/supabase-auth";
 export const metadata: Metadata = {
   title: "Вход",
   description: "Вход в ORKPOD Archive через Supabase Auth.",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
 };
 
 type SignInPageProps = {

@@ -1,7 +1,23 @@
-﻿import type { PropsWithChildren } from "react";
+import type { Metadata } from "next";
+import type { PropsWithChildren } from "react";
 import Link from "next/link";
 
 import { Container } from "@/components/shared/container";
+
+export const metadata: Metadata = {
+  title: "Admin",
+  description: "Административная зона ORKPOD Archive.",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
+};
 
 export default function AdminLayout({ children }: PropsWithChildren) {
   return (

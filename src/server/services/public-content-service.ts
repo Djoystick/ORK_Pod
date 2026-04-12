@@ -10,35 +10,28 @@ import {
 } from "@/lib/content";
 import { getContentRepository } from "@/server/repositories/content-repository";
 
-export async function getHomePageData() {
+async function readTaxonomyAndArchiveItems() {
   const repository = getContentRepository();
-  const [taxonomy, archiveItems] = await Promise.all([
-    repository.listTaxonomy(),
-    repository.listArchiveItems(),
-  ]);
+  return Promise.all([repository.listTaxonomy(), repository.listArchiveItems()]);
+}
 
+export async function getHomePageData() {
+  const [taxonomy, archiveItems] = await readTaxonomyAndArchiveItems();
   const sortedItems = sortItemsByDate(archiveItems, "newest");
 
   return {
     featuredItems: getFeaturedItems(sortedItems, 3),
     recentItems: getRecentItems(sortedItems, 6),
-    categoryOverview: getCategoryOverview(
-      taxonomy.categories,
-      taxonomy.series,
-      sortedItems,
-    ),
+    categoryOverview: getCategoryOverview(taxonomy.categories, taxonomy.series, sortedItems),
   };
 }
 
 export async function getArchivePageData() {
-  const repository = getContentRepository();
-  const [taxonomy, archiveItems] = await Promise.all([
-    repository.listTaxonomy(),
-    repository.listArchiveItems(),
-  ]);
+  const [taxonomy, archiveItems] = await readTaxonomyAndArchiveItems();
+  const sortedItems = sortItemsByDate(archiveItems, "newest");
 
   return {
-    initialItems: sortItemsByDate(archiveItems, "newest"),
+    initialItems: sortedItems,
     filterOptions: buildArchiveFilterOptions(
       taxonomy.categories,
       taxonomy.series,
@@ -49,10 +42,8 @@ export async function getArchivePageData() {
 
 export async function getStreamDetailData(slug: string) {
   const repository = getContentRepository();
-  const [archiveItems, item] = await Promise.all([
-    repository.listArchiveItems(),
-    repository.getItemBySlug(slug),
-  ]);
+  const archiveItems = await repository.listArchiveItems();
+  const item = archiveItems.find((entry) => entry.slug === slug) ?? null;
 
   if (!item) {
     return null;

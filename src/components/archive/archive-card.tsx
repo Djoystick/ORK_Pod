@@ -1,4 +1,5 @@
-﻿import Link from "next/link";
+import Image from "next/image";
+import Link from "next/link";
 
 import { formatRuDate } from "@/lib/content";
 import type { ResolvedContentItem } from "@/types/content";
@@ -17,6 +18,15 @@ export function ArchiveCard({ item }: ArchiveCardProps) {
             backgroundImage: `linear-gradient(135deg, ${item.cover.palette[0]}, ${item.cover.palette[1]})`,
           }}
         >
+          {item.cover.kind === "image" && item.cover.src ? (
+            <Image
+              src={item.cover.src}
+              alt={item.cover.alt || item.title}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+              className="object-cover object-center"
+            />
+          ) : null}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.2),_rgba(0,0,0,0.25)_65%)]" />
           <div className="absolute left-4 top-4 rounded-full bg-black/35 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-zinc-200">
             {item.category.title}
