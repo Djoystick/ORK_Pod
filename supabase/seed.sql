@@ -1,9 +1,9 @@
 insert into categories (slug, title, description)
 values
-  ('interview', 'Интервью', 'Беседы с авторами и гостями про процессы и закулисье продакшена.'),
-  ('analysis', 'Аналитика', 'Разборы эфиров и выпусков: структура, техника, динамика и выводы.'),
-  ('practice', 'Практика', 'Лайв-сессии с прикладными задачами и реальными результатами.'),
-  ('community', 'Сообщество', 'Открытые Q&A и обсуждения с аудиторией.')
+  ('interview', 'Разговорные выпуски', 'Длинные форматы с обсуждениями, гостями и контекстом вокруг стрим-контента.'),
+  ('analysis', 'Новости и разборы', 'Новости индустрии, аналитические сюжеты и редакторские разборы по игровым темам.'),
+  ('practice', 'Нарезки и хайлайты', 'Короткие динамичные нарезки с яркими моментами, челленджами и игровыми эпизодами.'),
+  ('community', 'Стримы и кооп', 'Полные эфиры, дуэты и кооперативные прохождения с участием сообщества.')
 on conflict (slug)
 do update set
   title = excluded.title,
@@ -23,18 +23,18 @@ do update set
 
 insert into tags (slug, label)
 values
-  ('nextjs', 'Next.js'),
-  ('streaming', 'Стриминг'),
-  ('editorial', 'Редактура'),
-  ('community', 'Комьюнити'),
-  ('ux', 'UX'),
-  ('analytics', 'Аналитика'),
-  ('obs', 'OBS'),
-  ('audio', 'Аудио'),
-  ('automation', 'Автоматизация'),
-  ('typescript', 'TypeScript'),
-  ('archive', 'Архив'),
-  ('process', 'Процессы')
+  ('nextjs', 'TES / Skyrim'),
+  ('streaming', 'Стримы'),
+  ('editorial', 'Нарезки'),
+  ('community', 'Кооп'),
+  ('ux', 'Хорроры'),
+  ('analytics', 'Новости индустрии'),
+  ('obs', 'Blizzard'),
+  ('audio', 'RPG'),
+  ('automation', 'Симуляторы'),
+  ('typescript', 'Экшен'),
+  ('archive', 'WoW / Diablo'),
+  ('process', 'Реакты и обсуждения')
 on conflict (slug)
 do update set
   label = excluded.label;
@@ -48,38 +48,38 @@ values
   (
     'inside-stream',
     (select id from category_map where slug = 'interview'),
-    'Inside Stream',
-    'Интервью о производстве контента, ролях в команде и технической кухне.'
+    'Глубокие беседы',
+    'Разговорные выпуски с гостями и расширенным контекстом вокруг эфиров.'
   ),
   (
     'retro-air',
     (select id from category_map where slug = 'analysis'),
-    'Retro Air',
-    'Пост-эфирные разборы с фокусом на структуру, ритм и удержание внимания.'
+    'Индустрия и Blizzard',
+    'Новостные и аналитические выпуски о Blizzard, WoW, Diablo и смежных темах.'
   ),
   (
     'live-build',
     (select id from category_map where slug = 'practice'),
-    'Live Build',
-    'Практические стримы с реальной задачей и ограниченным временем.'
+    'Нарезки orkcut',
+    'Короткие хайлайты и динамичные игровые эпизоды с канала orkcut.'
   ),
   (
     'qna-room',
     (select id from category_map where slug = 'community'),
-    'Q&A Room',
-    'Открытый формат вопросов и ответов с короткими прикладными демо.'
+    'Стримы orkstream',
+    'Полные эфиры, кооп-прохождения и сессии с живым взаимодействием команды.'
   ),
   (
     'archive-notes',
     (select id from category_map where slug = 'analysis'),
-    'Archive Notes',
-    'Короткие выпуски с заметками по старым записям и повторными выводами.'
+    'Новости ORKPOD',
+    'Отдельная линия новостных сюжетов и реактов ORKPOD YouTube.'
   ),
   (
     'tooling-lab',
     (select id from category_map where slug = 'practice'),
-    'Tooling Lab',
-    'Серии по инструментам и рабочим пайплайнам для стрим-команды.'
+    'Симуляторы и выживание',
+    'Игровые подборки с упором на симуляторы, хоррор и выживание в формате нарезок.'
   )
 on conflict (slug)
 do update set
@@ -123,10 +123,10 @@ values
     'orkpod-youtube',
     'ORKPOD YouTube',
     (select id from platform_map where slug = 'youtube'),
-    'UC-ORKPOD-YouTube',
+    'UCPZZring891k7JVnr70dlIw',
     'https://youtube.com/@orkpod',
     true,
-    'Наследуемый канал из раннего seed-набора.'
+    'Канал новостных и аналитических выпусков ORKPOD.'
   )
 on conflict (slug)
 do update set

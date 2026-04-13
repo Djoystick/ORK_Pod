@@ -26,9 +26,9 @@ export const sourceChannels: SourceChannel[] = [
     slug: "orkpod-youtube",
     title: "ORKPOD YouTube",
     platformId: "platform-youtube",
-    externalChannelId: "UC-ORKPOD-YouTube",
+    externalChannelId: "UCPZZring891k7JVnr70dlIw",
     sourceUrl: "https://youtube.com/@orkpod",
     isActive: true,
-    notes: "Наследуемый канал из раннего seed-набора.",
+    notes: "Канал новостных и аналитических выпусков ORKPOD.",
   },
 ];

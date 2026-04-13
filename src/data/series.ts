@@ -5,48 +5,48 @@ export const seriesList: Series[] = [
     id: "series-inside-stream",
     slug: "inside-stream",
     categoryId: "cat-interview",
-    title: "Inside Stream",
+    title: "Глубокие беседы",
     description:
-      "Интервью о производстве контента, ролях в команде и технической кухне.",
+      "Разговорные выпуски с гостями и расширенным контекстом вокруг эфиров.",
   },
   {
     id: "series-retro-air",
     slug: "retro-air",
     categoryId: "cat-analysis",
-    title: "Retro Air",
+    title: "Индустрия и Blizzard",
     description:
-      "Пост-эфирные разборы с фокусом на структуру, ритм и удержание внимания.",
+      "Новостные и аналитические выпуски о Blizzard, WoW, Diablo и смежных темах.",
   },
   {
     id: "series-live-build",
     slug: "live-build",
     categoryId: "cat-practice",
-    title: "Live Build",
+    title: "Нарезки orkcut",
     description:
-      "Практические стримы с реальной задачей и ограниченным временем.",
+      "Короткие хайлайты и динамичные игровые эпизоды с канала orkcut.",
   },
   {
     id: "series-qna-room",
     slug: "qna-room",
     categoryId: "cat-community",
-    title: "Q&A Room",
+    title: "Стримы orkstream",
     description:
-      "Открытый формат вопросов и ответов с короткими прикладными демо.",
+      "Полные эфиры, кооп-прохождения и сессии с живым взаимодействием команды.",
   },
   {
     id: "series-archive-notes",
     slug: "archive-notes",
     categoryId: "cat-analysis",
-    title: "Archive Notes",
+    title: "Новости ORKPOD",
     description:
-      "Короткие выпуски с заметками по старым записям и повторным выводам.",
+      "Отдельная линия новостных сюжетов и реактов ORKPOD YouTube.",
   },
   {
     id: "series-tooling-lab",
     slug: "tooling-lab",
     categoryId: "cat-practice",
-    title: "Tooling Lab",
+    title: "Симуляторы и выживание",
     description:
-      "Серии по инструментам и рабочим пайплайнам для стрим-команды.",
+      "Игровые подборки с упором на симуляторы, хоррор и выживание в формате нарезок.",
   },
 ];

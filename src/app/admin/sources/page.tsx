@@ -25,6 +25,7 @@ export default async function AdminSourcesPage() {
         gate={data.gate}
         platforms={data.platforms}
         channels={data.channels}
+        playlists={data.playlists}
         recentRuns={data.recentRuns}
         lockSnapshot={data.lockSnapshot}
         ingestionRuntimeWarning={data.ingestionRuntimeWarning}

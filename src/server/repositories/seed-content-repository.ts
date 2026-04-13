@@ -6,7 +6,9 @@ import { categories, platforms, seriesList, tags } from "@/data";
 import { buildCommentAuthorReputation } from "@/lib/comment-reputation";
 import { resolveContentItems, sortItemsByDate } from "@/lib/content";
 import {
+  fetchYouTubeChannelPlaylists,
   fetchYouTubeChannelVideos,
+  type NormalizedYouTubePlaylist,
   type NormalizedYouTubeVideo,
 } from "@/server/services/youtube-ingestion-service";
 import {
@@ -14,12 +16,16 @@ import {
   readLocalFallbackCommentFeedback,
   readLocalFallbackComments,
   readLocalFallbackImportRuns,
+  readLocalFallbackPlaylistItems,
+  readLocalFallbackPlaylists,
   readLocalFallbackReactions,
   readLocalFallbackSourceChannels,
   writeLocalFallbackContentItems,
   writeLocalFallbackCommentFeedback,
   writeLocalFallbackComments,
   writeLocalFallbackImportRuns,
+  writeLocalFallbackPlaylistItems,
+  writeLocalFallbackPlaylists,
   writeLocalFallbackReactions,
   writeLocalFallbackSourceChannels,
 } from "@/server/storage/local-fallback-store";
@@ -37,6 +43,8 @@ import type {
   ImportRun,
   ImportRunTrigger,
   ImportRunItemResult,
+  Playlist,
+  PlaylistItem,
   ReactionRecord,
   UpdateCommentModerationInput,
   ResolvedSourceChannel,
@@ -100,6 +108,11 @@ type SourceAutomationProfile = {
   preferredSeriesSlug?: string;
   preferredTagSlugs?: string[];
   keywordBoosts?: string[];
+};
+
+type PlaylistSignals = {
+  playlistTitles: string[];
+  playlistIds: string[];
 };
 
 function pickPalette(seed: string): [string, string] {
@@ -331,135 +344,137 @@ function readMetadataSignals(video: NormalizedYouTubeVideo): MetadataSignals {
 
 const categoryKeywordRules: Array<{ slug: string; keywords: string[] }> = [
   {
-    slug: "community",
-    keywords: [
-      "q&a",
-      "qna",
-      "community",
-      "question",
-      "discussion",
-      "chat",
-      "сообщество",
-      "комьюнити",
-      "вопрос",
-      "ответ",
-      "дискуссия",
-      "обсуждение",
-    ],
-  },
-  {
     slug: "practice",
     keywords: [
-      "live build",
-      "tooling",
-      "lab",
-      "tutorial",
-      "how to",
-      "obs",
-      "practice",
-      "guide",
-      "практика",
-      "инструмент",
-      "гайд",
-      "лаборатория",
-      "сборка",
-      "автоматизация",
+      "нарезка",
+      "хайлайт",
+      "эпик",
+      "момент",
+      "highlight",
+      "montage",
+      "shorts",
+      "kletka",
+      "scam line",
+      "cleaning simulator",
+      "dread hunger",
+      "outbound",
+      "boba teashop",
     ],
   },
   {
-    slug: "interview",
+    slug: "community",
     keywords: [
-      "inside stream",
-      "interview",
-      "guest",
-      "conversation",
-      "podcast",
-      "интервью",
-      "гость",
-      "беседа",
-      "разговор",
-      "подкаст",
+      "стрим",
+      "stream",
+      "live",
+      "кооп",
+      "дуэт",
+      "прохождение",
+      "chained wheels",
+      "cooking simulator",
+      "pizza",
+      "heroes of the storm",
+      "tes",
+      "skyrim",
+      "fishing",
+      "goose gone",
     ],
   },
   {
     slug: "analysis",
     keywords: [
-      "retro air",
-      "archive notes",
-      "analysis",
-      "review",
-      "metrics",
-      "аналитика",
-      "анализ",
+      "blizzard",
+      "wow",
+      "warcraft",
+      "diablo",
+      "overwatch",
+      "dragonflight",
+      "shadowlands",
+      "immortal",
+      "blizzcon",
+      "activision",
+      "microsoft",
+      "новости",
       "разбор",
-      "обзор",
-      "метрики",
-      "архив",
-      "итоги",
+      "скандал",
+      "индустрия",
+    ],
+  },
+  {
+    slug: "interview",
+    keywords: [
+      "интервью",
+      "беседа",
+      "подкаст",
+      "разговор",
+      "гость",
+      "interview",
+      "podcast",
+      "conversation",
     ],
   },
 ];
 
 const seriesKeywordRules: Array<{ slug: string; keywords: string[] }> = [
   {
-    slug: "inside-stream",
-    keywords: ["inside stream", "interview", "conversation", "интервью", "беседа"],
-  },
-  {
-    slug: "retro-air",
-    keywords: ["retro air", "retrospective", "review", "ретро", "обзор", "разбор"],
-  },
-  {
     slug: "live-build",
-    keywords: ["live build", "build", "practice", "сборка", "практика"],
-  },
-  {
-    slug: "qna-room",
-    keywords: ["q&a", "qna", "question", "answers", "community", "вопрос", "ответ"],
-  },
-  {
-    slug: "archive-notes",
-    keywords: ["archive notes", "archive", "notes", "архив", "заметки"],
+    keywords: ["нарезка", "хайлайт", "эпик", "montage", "highlight", "orkcut"],
   },
   {
     slug: "tooling-lab",
-    keywords: ["tooling", "lab", "tool", "obs", "automation", "инструмент", "автоматизация"],
+    keywords: ["simulator", "horror", "survival", "kletka", "scam line", "dread hunger"],
+  },
+  {
+    slug: "qna-room",
+    keywords: ["стрим", "stream", "live", "кооп", "дуэт", "orkstream"],
+  },
+  {
+    slug: "archive-notes",
+    keywords: ["blizzard", "wow", "diablo", "warcraft", "overwatch", "новости", "разбор"],
+  },
+  {
+    slug: "retro-air",
+    keywords: ["blizzard", "индустрия", "скандал", "экспертиза", "обзор"],
+  },
+  {
+    slug: "inside-stream",
+    keywords: ["интервью", "подкаст", "беседа", "гость", "conversation"],
   },
 ];
 
 const tagKeywordRules: Record<string, string[]> = {
-  nextjs: ["next.js", "nextjs", "app router", "next"],
-  streaming: ["stream", "streaming", "broadcast", "стрим", "эфир"],
-  editorial: ["editorial", "editing", "editor", "редактура", "монтаж"],
-  community: ["community", "q&a", "qna", "комьюнити", "сообщество"],
-  ux: ["ux", "ui", "interface", "интерфейс"],
-  analytics: ["analytics", "metrics", "retention", "аналитика", "метрики"],
-  obs: ["obs", "open broadcaster", "обс"],
-  audio: ["audio", "sound", "microphone", "аудио", "звук", "микрофон"],
-  automation: ["automation", "pipeline", "workflow", "автоматизация", "pipeline"],
-  typescript: ["typescript", "type script", "ts"],
-  archive: ["archive", "catalog", "library", "архив", "каталог"],
-  process: ["process", "workflow", "flow", "процесс", "поток"],
+  nextjs: ["tes", "skyrim", "dovakin", "elder scrolls", "скайрим"],
+  streaming: ["stream", "стрим", "live", "эфир", "twitch"],
+  editorial: ["нарезка", "highlight", "хайлайт", "montage", "эпик"],
+  community: ["кооп", "co-op", "coop", "дуэт", "команда"],
+  ux: ["horror", "хоррор", "страш", "ужас", "twisted"],
+  analytics: ["новости", "разбор", "скандал", "индустрия", "экспертиза"],
+  obs: ["blizzard", "blizzcon", "hots"],
+  audio: ["rpg", "adventure", "quest", "сюжет"],
+  automation: ["simulator", "симулятор", "sim", "cooking simulator", "crime simulator"],
+  typescript: ["action", "экшен", "battle", "битва", "fight"],
+  archive: ["wow", "diablo", "warcraft", "overwatch", "dragonflight", "shadowlands"],
+  process: ["обсуждение", "reaction", "реакт", "анонс", "экспертиза"],
 };
 
 const sourceAutomationProfiles: Record<string, SourceAutomationProfile> = {
   orkcut: {
     preferredCategorySlug: "practice",
-    preferredSeriesSlug: "tooling-lab",
-    preferredTagSlugs: ["automation", "process", "obs"],
-    keywordBoosts: ["tooling", "pipeline", "workflow", "автоматизация", "практика"],
+    preferredSeriesSlug: "live-build",
+    preferredTagSlugs: ["editorial", "automation", "ux"],
+    keywordBoosts: ["нарезка", "хайлайт", "эпик", "симулятор", "хоррор"],
   },
   orkstream: {
     preferredCategorySlug: "community",
     preferredSeriesSlug: "qna-room",
-    preferredTagSlugs: ["community", "streaming"],
-    keywordBoosts: ["community", "q&a", "чат", "вопрос"],
+    preferredTagSlugs: ["streaming", "community", "nextjs"],
+    keywordBoosts: ["стрим", "кооп", "tes", "skyrim", "duo"],
   },
   "orkpod-youtube": {
     preferredCategorySlug: "analysis",
     preferredSeriesSlug: "archive-notes",
-    preferredTagSlugs: ["archive", "analytics"],
-    keywordBoosts: ["archive", "review", "метрики", "анализ"],
+    preferredTagSlugs: ["analytics", "obs", "archive", "process"],
+    keywordBoosts: ["blizzard", "wow", "diablo", "новости", "разбор"],
   },
 };
 
@@ -517,6 +532,9 @@ const lowSignalSourceTags = new Set([
   "youtube",
   "stream",
   "shorts",
+  "gaming",
+  "gameplay",
+  "игра",
   "dela",
   "ladda upp",
   "gratis",
@@ -587,10 +605,13 @@ function buildAutoMappingResult(params: {
   defaultCategoryId: string;
   defaultSeriesId: string | null;
   metadataSignals?: MetadataSignals;
+  playlistSignals?: PlaylistSignals | null;
 }) {
   const metadataSignals = params.metadataSignals ?? readMetadataSignals(params.video);
   const sourceProfile = sourceAutomationProfiles[params.source.slug] ?? null;
   const sourceProfileBoostTerms = sourceProfile?.keywordBoosts ?? [];
+  const playlistTitles = params.playlistSignals?.playlistTitles ?? [];
+  const playlistIds = params.playlistSignals?.playlistIds ?? [];
 
   const searchable = [
     params.video.title,
@@ -602,6 +623,8 @@ function buildAutoMappingResult(params: {
     params.source.title,
     params.source.slug,
     ...normalizeSourceTagSignalsForMapping(params.video.sourceTags),
+    ...playlistTitles,
+    ...playlistIds,
     ...sourceProfileBoostTerms,
   ].join(" ");
   const titleOnly = [params.video.title, params.video.sourceCategory ?? ""].join(" ");
@@ -734,13 +757,18 @@ function buildAutoMappingResult(params: {
     ...selectedSeriesSignal.allMatches,
     ...tagCandidateEntries.flatMap((entry) => entry.keywordMatches),
     ...sourceTagSignals,
+    ...playlistTitles,
     ...listKeywordMatches(searchable, sourceProfileBoostTerms),
   ]);
+
+  const playlistSignalStrength =
+    playlistTitles.length >= 2 ? 2 : playlistTitles.length === 1 ? 1 : 0;
 
   const score =
     selectedCategorySignal.score +
     selectedSeriesSignal.score +
     (resolvedTagIds.length >= 3 ? 4 : resolvedTagIds.length > 0 ? 2 : 0) +
+    playlistSignalStrength +
     (sourceTagSignals.length >= 2 ? 1 : 0) +
     (exactSourceTags ? 3 : 0) +
     (metadataSignals.overallReliability === "high"
@@ -752,7 +780,8 @@ function buildAutoMappingResult(params: {
   const hasStrongSemanticSignals =
     selectedCategorySignal.allMatches.length > 0 ||
     selectedSeriesSignal.allMatches.length > 0 ||
-    tagCandidateEntries.some((entry) => entry.totalScore >= 4);
+    tagCandidateEntries.some((entry) => entry.totalScore >= 4) ||
+    playlistTitles.length > 0;
 
   let confidence: MappingConfidence = score >= 12 ? "high" : score >= 7 ? "medium" : "low";
   if (metadataSignals.overallReliability === "low" && confidence === "high") {
@@ -770,7 +799,7 @@ function buildAutoMappingResult(params: {
     (selectedSeriesSignal.allMatches.length === 0 &&
       !sourceProfile?.preferredSeriesSlug &&
       Boolean(selectedSeries)) ||
-    (resolvedTagIds.length === 0 && !exactSourceTags);
+    (resolvedTagIds.length === 0 && !exactSourceTags && playlistTitles.length === 0);
   const needsReview =
     confidence !== "high" ||
     fallbackUsed ||
@@ -796,6 +825,7 @@ function buildAutoMappingResult(params: {
       `mapping_score:${score}`,
       `mapping_confidence:${confidence}`,
       `source_tags_exact:${exactSourceTags ? "true" : "false"}`,
+      `playlist_signals:${playlistTitles.length}`,
       `semantic_signals:${hasStrongSemanticSignals ? "strong" : "weak"}`,
       sourceProfile ? `source_profile:${params.source.slug}` : "source_profile:none",
       `metadata_reliability:${metadataSignals.overallReliability}`,
@@ -1075,6 +1105,148 @@ function buildSourcePayload({
       syncedAt,
     },
     raw: (video.sourcePayload.raw as Record<string, unknown> | undefined) ?? null,
+  };
+}
+
+function buildPlaylistSignalsByVideoId(playlists: NormalizedYouTubePlaylist[]) {
+  const signalsByVideoId = new Map<string, PlaylistSignals>();
+
+  for (const playlist of playlists) {
+    for (const item of playlist.items) {
+      const videoId = item.externalVideoId.trim();
+      if (!videoId) {
+        continue;
+      }
+
+      const existing = signalsByVideoId.get(videoId) ?? {
+        playlistTitles: [],
+        playlistIds: [],
+      };
+      existing.playlistTitles = deduplicateCaseInsensitive([
+        ...existing.playlistTitles,
+        playlist.title,
+      ]);
+      existing.playlistIds = deduplicateCaseInsensitive([
+        ...existing.playlistIds,
+        playlist.externalPlaylistId,
+      ]);
+      signalsByVideoId.set(videoId, existing);
+    }
+  }
+
+  return signalsByVideoId;
+}
+
+async function persistPlaylistsToLocalStore(params: {
+  source: SourceChannel;
+  playlists: NormalizedYouTubePlaylist[];
+  linkedContentItemIdByVideoId: Map<string, string>;
+  syncedAt: string;
+  syncMode: SourceChannel["playlistSyncMode"];
+}) {
+  if (params.syncMode !== "api_primary") {
+    return {
+      syncedAt: params.syncedAt,
+      playlistCount: 0,
+      playlistItemCount: 0,
+    };
+  }
+
+  const existingPlaylists = await readLocalFallbackPlaylists();
+  const existingPlaylistItems = await readLocalFallbackPlaylistItems();
+
+  const nextPlaylists = [...existingPlaylists];
+  const nextPlaylistItems = existingPlaylistItems.filter((entry) => {
+    const playlist = existingPlaylists.find((candidate) => candidate.id === entry.playlistId);
+    if (!playlist) {
+      return false;
+    }
+    return playlist.sourceChannelId !== params.source.id;
+  });
+
+  const fetchedExternalIds = new Set(params.playlists.map((entry) => entry.externalPlaylistId));
+  for (let index = 0; index < nextPlaylists.length; index += 1) {
+    const playlist = nextPlaylists[index];
+    if (playlist.sourceChannelId !== params.source.id) {
+      continue;
+    }
+
+    if (fetchedExternalIds.has(playlist.externalPlaylistId)) {
+      continue;
+    }
+
+    nextPlaylists[index] = {
+      ...playlist,
+      isActive: false,
+      lastSyncedAt: params.syncedAt,
+      updatedAt: params.syncedAt,
+    };
+  }
+
+  let playlistItemCount = 0;
+
+  for (const playlist of params.playlists) {
+    const existingIndex = nextPlaylists.findIndex(
+      (entry) => entry.externalPlaylistId === playlist.externalPlaylistId,
+    );
+    const playlistId =
+      existingIndex >= 0 ? nextPlaylists[existingIndex].id : `playlist-${randomUUID()}`;
+
+    const linkedCount = playlist.items.filter((entry) =>
+      params.linkedContentItemIdByVideoId.has(entry.externalVideoId),
+    ).length;
+    const normalizedPlaylist: Playlist = {
+      id: playlistId,
+      sourceChannelId: params.source.id,
+      externalPlaylistId: playlist.externalPlaylistId,
+      slug: playlist.slug,
+      title: playlist.title,
+      description: playlist.description,
+      externalUrl: playlist.externalUrl,
+      thumbnailUrl: playlist.thumbnailUrl,
+      itemCount: playlist.itemCount,
+      syncedItemCount: playlist.items.length,
+      linkedItemCount: linkedCount,
+      isActive: true,
+      publishedAt: playlist.publishedAt,
+      sourcePayload: playlist.sourcePayload,
+      createdAt: existingIndex >= 0 ? nextPlaylists[existingIndex].createdAt : params.syncedAt,
+      updatedAt: params.syncedAt,
+      lastSyncedAt: params.syncedAt,
+    };
+
+    if (existingIndex >= 0) {
+      nextPlaylists[existingIndex] = normalizedPlaylist;
+    } else {
+      nextPlaylists.push(normalizedPlaylist);
+    }
+
+    for (const item of playlist.items) {
+      playlistItemCount += 1;
+      const normalizedItem: PlaylistItem = {
+        id: `playlist-item-${randomUUID()}`,
+        playlistId,
+        contentItemId:
+          params.linkedContentItemIdByVideoId.get(item.externalVideoId) ?? null,
+        externalVideoId: item.externalVideoId,
+        position: item.position,
+        title: item.title,
+        addedAt: item.addedAt,
+        sourcePayload: item.sourcePayload,
+        createdAt: params.syncedAt,
+        updatedAt: params.syncedAt,
+      };
+      nextPlaylistItems.push(normalizedItem);
+    }
+  }
+
+  await writeLocalFallbackPlaylists(nextPlaylists);
+  await writeLocalFallbackPlaylistItems(nextPlaylistItems);
+
+  return {
+    syncedAt: params.syncedAt,
+    playlistCount: params.playlists.length,
+    playlistItemCount,
   };
 }
 
@@ -1431,12 +1603,33 @@ export class SeedContentRepository implements ContentRepository {
           lastSuccessfulSyncAt: channel.lastSuccessfulSyncAt ?? null,
           lastErrorAt: channel.lastErrorAt ?? null,
           lastErrorMessage: channel.lastErrorMessage ?? null,
+          lastPlaylistSyncedAt: channel.lastPlaylistSyncedAt ?? null,
+          lastPlaylistCount: channel.lastPlaylistCount ?? null,
+          lastPlaylistItemCount: channel.lastPlaylistItemCount ?? null,
+          playlistSyncMode: channel.playlistSyncMode ?? null,
+          playlistSyncMessage: channel.playlistSyncMessage ?? null,
           platform,
         };
       })
       .filter(isResolvedSourceChannel);
 
     return resolved.sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  async listPlaylists(options?: { sourceChannelId?: string; limit?: number }) {
+    const playlists = await readLocalFallbackPlaylists();
+    const filtered = options?.sourceChannelId
+      ? playlists.filter((entry) => entry.sourceChannelId === options.sourceChannelId)
+      : playlists;
+    const sorted = [...filtered].sort(
+      (left, right) =>
+        new Date(right.lastSyncedAt ?? right.updatedAt ?? 0).getTime() -
+        new Date(left.lastSyncedAt ?? left.updatedAt ?? 0).getTime(),
+    );
+    const normalizedLimit = Number.isFinite(options?.limit ?? Number.NaN)
+      ? Math.max(1, Math.min(250, options?.limit ?? 50))
+      : 50;
+    return sorted.slice(0, normalizedLimit);
   }
 
   async createSourceChannel(input: CreateSourceChannelInput) {
@@ -1468,6 +1661,11 @@ export class SeedContentRepository implements ContentRepository {
       lastSuccessfulSyncAt: null,
       lastErrorAt: null,
       lastErrorMessage: null,
+      lastPlaylistSyncedAt: null,
+      lastPlaylistCount: null,
+      lastPlaylistItemCount: null,
+      playlistSyncMode: null,
+      playlistSyncMessage: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -1539,6 +1737,12 @@ export class SeedContentRepository implements ContentRepository {
       }
 
       const { resolved, videos } = await fetchYouTubeChannelVideos(source);
+      const playlistSyncResult = await fetchYouTubeChannelPlaylists(source, {
+        resolved,
+      });
+      const playlistSignalsByVideoId = buildPlaylistSignalsByVideoId(
+        playlistSyncResult.playlists,
+      );
       const filteredVideos =
         options?.trigger === "retry_failed_items" &&
         Array.isArray(options.retryExternalSourceIds) &&
@@ -1560,6 +1764,7 @@ export class SeedContentRepository implements ContentRepository {
             defaultCategoryId,
             defaultSeriesId,
             metadataSignals,
+            playlistSignals: playlistSignalsByVideoId.get(video.externalSourceId) ?? null,
           });
           const existingIndex = allItems.findIndex(
             (item) =>
@@ -1828,6 +2033,34 @@ export class SeedContentRepository implements ContentRepository {
 
       await writeLocalFallbackContentItems(allItems);
 
+      const linkedContentItemIdByVideoId = new Map<string, string>();
+      for (const item of allItems) {
+        if (
+          item.sourceType === "imported" &&
+          typeof item.externalSourceId === "string" &&
+          item.externalSourceId.trim().length > 0
+        ) {
+          linkedContentItemIdByVideoId.set(item.externalSourceId, item.id);
+        }
+      }
+      let playlistPersistence: { syncedAt: string; playlistCount: number; playlistItemCount: number };
+      try {
+        playlistPersistence = await persistPlaylistsToLocalStore({
+          source,
+        playlists: playlistSyncResult.playlists,
+        linkedContentItemIdByVideoId,
+        syncedAt: now,
+        syncMode: playlistSyncResult.mode,
+      });
+      } catch (playlistError) {
+        playlistPersistence = {
+          syncedAt: now,
+          playlistCount: 0,
+          playlistItemCount: 0,
+        };
+        console.warn("[seed-repo] playlist sync failed", playlistError);
+      }
+
       const finishedAt = new Date().toISOString();
       run.itemResults = itemResults;
       run.status = summarizeRunStatus(run);
@@ -1853,6 +2086,11 @@ export class SeedContentRepository implements ContentRepository {
           lastErrorAt: run.status === "failed" ? finishedAt : null,
           lastErrorMessage:
             run.status === "failed" ? run.errorMessage ?? "Ingestion failed" : null,
+          lastPlaylistSyncedAt: playlistPersistence.syncedAt,
+          lastPlaylistCount: playlistPersistence.playlistCount,
+          lastPlaylistItemCount: playlistPersistence.playlistItemCount,
+          playlistSyncMode: playlistSyncResult.mode,
+          playlistSyncMessage: playlistSyncResult.message,
           updatedAt: finishedAt,
         };
         await writeLocalFallbackSourceChannels(refreshedSourceChannels);

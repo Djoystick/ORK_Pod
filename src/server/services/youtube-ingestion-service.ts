@@ -32,12 +32,45 @@ export interface NormalizedYouTubeVideo {
   sourcePayload: Record<string, unknown>;
 }
 
+export interface NormalizedYouTubePlaylistItem {
+  externalVideoId: string;
+  title: string;
+  position: number;
+  addedAt: string | null;
+  sourcePayload: Record<string, unknown>;
+}
+
+export interface NormalizedYouTubePlaylist {
+  externalPlaylistId: string;
+  title: string;
+  description: string;
+  slug: string;
+  externalUrl: string;
+  publishedAt: string | null;
+  thumbnailUrl: string | null;
+  sourceChannelId: string | null;
+  sourceChannelTitle: string | null;
+  itemCount: number;
+  sourcePayload: Record<string, unknown>;
+  items: NormalizedYouTubePlaylistItem[];
+}
+
+export interface YouTubePlaylistSyncResult {
+  mode: "api_primary" | "disabled_no_api_key" | "error";
+  message: string | null;
+  playlists: NormalizedYouTubePlaylist[];
+  playlistCount: number;
+  playlistItemCount: number;
+}
+
 const DEFAULT_FETCH_TIMEOUT_MS = 15000;
 const DEFAULT_WATCH_ENRICHMENT_TIMEOUT_MS = 12000;
 const DEFAULT_OEMBED_ENRICHMENT_TIMEOUT_MS = 8000;
 const DEFAULT_YOUTUBE_DATA_API_TIMEOUT_MS = 12000;
 const DEFAULT_YOUTUBE_DATA_API_BACKFILL_MAX_ITEMS = 120;
 const DEFAULT_YOUTUBE_DATA_API_BACKFILL_PAGE_SIZE = 50;
+const DEFAULT_YOUTUBE_DATA_API_PLAYLIST_MAX_PLAYLISTS = 25;
+const DEFAULT_YOUTUBE_DATA_API_PLAYLIST_MAX_ITEMS_PER_PLAYLIST = 120;
 const MAX_DESCRIPTION_LENGTH = 4000;
 const MAX_EXCERPT_LENGTH = 260;
 
@@ -453,6 +486,17 @@ type YouTubeDataApiPlaylistVideoSeed = {
   channelTitle: string | null;
 };
 
+type YouTubeDataApiPlaylistSeed = {
+  playlistId: string;
+  title: string | null;
+  description: string | null;
+  publishedAt: string | null;
+  thumbnailUrl: string | null;
+  channelId: string | null;
+  channelTitle: string | null;
+  itemCount: number;
+};
+
 type YouTubeDataApiPrimaryPathResult = {
   videos: NormalizedYouTubeVideo[];
   dataApiResult: YouTubeDataApiFetchResult;
@@ -643,6 +687,36 @@ function getYouTubeDataApiBackfillPageSize() {
   );
   const normalized = Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_YOUTUBE_DATA_API_BACKFILL_PAGE_SIZE;
   return Math.max(5, Math.min(50, normalized));
+}
+
+function getYouTubePlaylistSyncMaxPlaylists(requested?: number) {
+  const raw =
+    requested ??
+    Number.parseInt(
+      process.env.YOUTUBE_DATA_API_PLAYLIST_MAX_PLAYLISTS_PER_SOURCE ??
+        `${DEFAULT_YOUTUBE_DATA_API_PLAYLIST_MAX_PLAYLISTS}`,
+      10,
+    );
+  const normalized =
+    Number.isFinite(raw) && raw > 0
+      ? raw
+      : DEFAULT_YOUTUBE_DATA_API_PLAYLIST_MAX_PLAYLISTS;
+  return Math.max(1, Math.min(100, normalized));
+}
+
+function getYouTubePlaylistSyncMaxItemsPerPlaylist(requested?: number) {
+  const raw =
+    requested ??
+    Number.parseInt(
+      process.env.YOUTUBE_DATA_API_PLAYLIST_MAX_ITEMS_PER_PLAYLIST ??
+        `${DEFAULT_YOUTUBE_DATA_API_PLAYLIST_MAX_ITEMS_PER_PLAYLIST}`,
+      10,
+    );
+  const normalized =
+    Number.isFinite(raw) && raw > 0
+      ? raw
+      : DEFAULT_YOUTUBE_DATA_API_PLAYLIST_MAX_ITEMS_PER_PLAYLIST;
+  return Math.max(1, Math.min(300, normalized));
 }
 
 function parseYouTubeDataApiThumbnail(snippet: Record<string, unknown>) {
@@ -867,6 +941,287 @@ function parseYouTubeDataApiPlaylistSeed(
         ? normalizeText(snippet.channelTitle)
         : null,
   };
+}
+
+function parseYouTubeDataApiChannelPlaylistSeed(
+  item: Record<string, unknown>,
+): YouTubeDataApiPlaylistSeed | null {
+  const playlistId = typeof item.id === "string" ? item.id.trim() : "";
+  if (!playlistId) {
+    return null;
+  }
+
+  const snippet =
+    item.snippet && typeof item.snippet === "object"
+      ? (item.snippet as Record<string, unknown>)
+      : null;
+  const contentDetails =
+    item.contentDetails && typeof item.contentDetails === "object"
+      ? (item.contentDetails as Record<string, unknown>)
+      : null;
+
+  const itemCount =
+    typeof contentDetails?.itemCount === "number" && Number.isFinite(contentDetails.itemCount)
+      ? Math.max(0, Math.trunc(contentDetails.itemCount))
+      : 0;
+
+  return {
+    playlistId,
+    title:
+      typeof snippet?.title === "string" && normalizeText(snippet.title)
+        ? normalizeText(snippet.title)
+        : null,
+    description:
+      typeof snippet?.description === "string" && normalizeText(snippet.description)
+        ? truncate(normalizeText(snippet.description), MAX_DESCRIPTION_LENGTH)
+        : null,
+    publishedAt: typeof snippet?.publishedAt === "string" ? snippet.publishedAt : null,
+    thumbnailUrl: snippet ? parseYouTubeDataApiThumbnail(snippet) : null,
+    channelId: typeof snippet?.channelId === "string" ? snippet.channelId : null,
+    channelTitle:
+      typeof snippet?.channelTitle === "string" && normalizeText(snippet.channelTitle)
+        ? normalizeText(snippet.channelTitle)
+        : null,
+    itemCount,
+  };
+}
+
+function normalizePlaylistSlug(sourceSlug: string, playlistId: string, title: string | null) {
+  const titlePart = title ? sanitizeSlug(title) : "";
+  const idPart = playlistId.slice(-8).toLowerCase();
+  const base = titlePart || `playlist-${idPart}`;
+  return sanitizeSlug(`${sourceSlug}-${base}-${idPart}`) || `${sourceSlug}-playlist-${idPart}`;
+}
+
+function normalizePlaylistItemFromDataApi(item: Record<string, unknown>) {
+  const contentDetails =
+    item.contentDetails && typeof item.contentDetails === "object"
+      ? (item.contentDetails as Record<string, unknown>)
+      : null;
+  const snippet =
+    item.snippet && typeof item.snippet === "object"
+      ? (item.snippet as Record<string, unknown>)
+      : null;
+  const resourceId =
+    snippet?.resourceId && typeof snippet.resourceId === "object"
+      ? (snippet.resourceId as Record<string, unknown>)
+      : null;
+
+  const externalVideoIdCandidates = [
+    typeof contentDetails?.videoId === "string" ? contentDetails.videoId : null,
+    typeof resourceId?.videoId === "string" ? resourceId.videoId : null,
+  ].filter((entry): entry is string => Boolean(entry && entry.trim().length > 0));
+  const externalVideoId = externalVideoIdCandidates[0]?.trim() ?? null;
+  if (!externalVideoId) {
+    return null;
+  }
+
+  const position =
+    typeof snippet?.position === "number" && Number.isFinite(snippet.position)
+      ? Math.max(0, Math.trunc(snippet.position))
+      : 0;
+  const title =
+    typeof snippet?.title === "string" && normalizeText(snippet.title)
+      ? normalizeText(snippet.title)
+      : externalVideoId;
+  const addedAt = typeof snippet?.publishedAt === "string" ? snippet.publishedAt : null;
+
+  return {
+    externalVideoId,
+    title,
+    position,
+    addedAt,
+    sourcePayload: {
+      snippet: {
+        videoPublishedAt:
+          typeof contentDetails?.videoPublishedAt === "string"
+            ? contentDetails.videoPublishedAt
+            : null,
+      },
+    },
+  } satisfies NormalizedYouTubePlaylistItem;
+}
+
+async function fetchYouTubeDataApiPlaylistItems(params: {
+  playlistId: string;
+  maxItems: number;
+}) {
+  const maxItems = getYouTubePlaylistSyncMaxItemsPerPlaylist(params.maxItems);
+  const pageSize = getYouTubeDataApiBackfillPageSize();
+  const items: NormalizedYouTubePlaylistItem[] = [];
+  let nextPageToken: string | null = null;
+
+  while (items.length < maxItems) {
+    const endpoint = new URL("https://www.googleapis.com/youtube/v3/playlistItems");
+    endpoint.searchParams.set("part", "snippet,contentDetails");
+    endpoint.searchParams.set("playlistId", params.playlistId);
+    endpoint.searchParams.set("maxResults", `${Math.min(pageSize, maxItems - items.length)}`);
+    endpoint.searchParams.set("key", getYouTubeDataApiKey());
+    if (nextPageToken) {
+      endpoint.searchParams.set("pageToken", nextPageToken);
+    }
+
+    const payload = await fetchJson<Record<string, unknown>>(
+      endpoint.toString(),
+      getYouTubeDataApiTimeoutMs(),
+    );
+    const rows = Array.isArray(payload.items)
+      ? payload.items.filter(
+          (entry): entry is Record<string, unknown> =>
+            typeof entry === "object" && entry !== null,
+        )
+      : [];
+
+    for (const row of rows) {
+      const parsed = normalizePlaylistItemFromDataApi(row);
+      if (!parsed) {
+        continue;
+      }
+      if (items.some((entry) => entry.externalVideoId === parsed.externalVideoId)) {
+        continue;
+      }
+      items.push(parsed);
+      if (items.length >= maxItems) {
+        break;
+      }
+    }
+
+    nextPageToken =
+      typeof payload.nextPageToken === "string" && payload.nextPageToken.trim().length > 0
+        ? payload.nextPageToken
+        : null;
+    if (!nextPageToken) {
+      break;
+    }
+  }
+
+  return items;
+}
+
+export async function fetchYouTubeChannelPlaylists(
+  source: SourceChannel,
+  options: {
+    resolved: ResolvedYouTubeSource;
+    maxPlaylists?: number;
+    maxItemsPerPlaylist?: number;
+  },
+): Promise<YouTubePlaylistSyncResult> {
+  if (!isYouTubeDataApiEnabled()) {
+    return {
+      mode: "disabled_no_api_key",
+      message: "YOUTUBE_DATA_API_KEY is not configured.",
+      playlists: [],
+      playlistCount: 0,
+      playlistItemCount: 0,
+    };
+  }
+
+  const maxPlaylists = getYouTubePlaylistSyncMaxPlaylists(options.maxPlaylists);
+  const maxItemsPerPlaylist = getYouTubePlaylistSyncMaxItemsPerPlaylist(
+    options.maxItemsPerPlaylist,
+  );
+
+  try {
+    const playlistSeeds: YouTubeDataApiPlaylistSeed[] = [];
+    let nextPageToken: string | null = null;
+
+    while (playlistSeeds.length < maxPlaylists) {
+      const endpoint = new URL("https://www.googleapis.com/youtube/v3/playlists");
+      endpoint.searchParams.set("part", "snippet,contentDetails");
+      endpoint.searchParams.set("channelId", options.resolved.channelId);
+      endpoint.searchParams.set(
+        "maxResults",
+        `${Math.min(getYouTubeDataApiBackfillPageSize(), maxPlaylists - playlistSeeds.length)}`,
+      );
+      endpoint.searchParams.set("key", getYouTubeDataApiKey());
+      if (nextPageToken) {
+        endpoint.searchParams.set("pageToken", nextPageToken);
+      }
+
+      const payload = await fetchJson<Record<string, unknown>>(
+        endpoint.toString(),
+        getYouTubeDataApiTimeoutMs(),
+      );
+      const rows = Array.isArray(payload.items)
+        ? payload.items.filter(
+            (entry): entry is Record<string, unknown> =>
+              typeof entry === "object" && entry !== null,
+          )
+        : [];
+
+      for (const row of rows) {
+        const seed = parseYouTubeDataApiChannelPlaylistSeed(row);
+        if (!seed) {
+          continue;
+        }
+        if (playlistSeeds.some((entry) => entry.playlistId === seed.playlistId)) {
+          continue;
+        }
+        playlistSeeds.push(seed);
+        if (playlistSeeds.length >= maxPlaylists) {
+          break;
+        }
+      }
+
+      nextPageToken =
+        typeof payload.nextPageToken === "string" && payload.nextPageToken.trim().length > 0
+          ? payload.nextPageToken
+          : null;
+      if (!nextPageToken) {
+        break;
+      }
+    }
+
+    const normalizedPlaylists: NormalizedYouTubePlaylist[] = [];
+    let playlistItemCount = 0;
+
+    for (const seed of playlistSeeds) {
+      const items = await fetchYouTubeDataApiPlaylistItems({
+        playlistId: seed.playlistId,
+        maxItems: maxItemsPerPlaylist,
+      });
+      playlistItemCount += items.length;
+
+      normalizedPlaylists.push({
+        externalPlaylistId: seed.playlistId,
+        title: seed.title ?? seed.playlistId,
+        description: seed.description ?? "",
+        slug: normalizePlaylistSlug(source.slug, seed.playlistId, seed.title),
+        externalUrl: `https://www.youtube.com/playlist?list=${seed.playlistId}`,
+        publishedAt: seed.publishedAt ? toIsoDate(seed.publishedAt) : null,
+        thumbnailUrl: seed.thumbnailUrl,
+        sourceChannelId: seed.channelId ?? options.resolved.channelId,
+        sourceChannelTitle: seed.channelTitle ?? source.title,
+        itemCount: seed.itemCount,
+        sourcePayload: {
+          ingestion: {
+            provider: "youtube_data_api_playlist_sync",
+            sourceSlug: source.slug,
+            externalPlaylistId: seed.playlistId,
+            sourceChannelId: seed.channelId ?? options.resolved.channelId,
+            sourceChannelTitle: seed.channelTitle ?? source.title,
+          },
+        },
+        items,
+      });
+    }
+
+    return {
+      mode: "api_primary",
+      message: null,
+      playlists: normalizedPlaylists,
+      playlistCount: normalizedPlaylists.length,
+      playlistItemCount,
+    };
+  } catch (error) {
+    return {
+      mode: "error",
+      message: error instanceof Error ? error.message : "playlist_sync_error",
+      playlists: [],
+      playlistCount: 0,
+      playlistItemCount: 0,
+    };
+  }
 }
 
 function normalizeVideoFromYouTubeDataApi(params: {

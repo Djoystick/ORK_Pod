@@ -8,6 +8,7 @@ import type {
   CreateCommentInput,
   ImportRun,
   ImportRunTrigger,
+  Playlist,
   CreateSourceChannelInput,
   CreateManualContentInput,
   Platform,
@@ -38,6 +39,7 @@ export interface ContentRepository {
     status: ContentStatus,
   ): Promise<{ id: string; status: ContentStatus }>;
   listSourceChannels(): Promise<ResolvedSourceChannel[]>;
+  listPlaylists(options?: { sourceChannelId?: string; limit?: number }): Promise<Playlist[]>;
   createSourceChannel(input: CreateSourceChannelInput): Promise<{ id: string; slug: string }>;
   runSourceSync(
     sourceId: string,

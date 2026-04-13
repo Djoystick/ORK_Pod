@@ -84,6 +84,44 @@ export interface SourceChannel {
   lastErrorAt?: string | null;
   lastErrorMessage?: string | null;
   isSyncInProgress?: boolean;
+  lastPlaylistSyncedAt?: string | null;
+  lastPlaylistCount?: number | null;
+  lastPlaylistItemCount?: number | null;
+  playlistSyncMode?: "api_primary" | "disabled_no_api_key" | "error" | null;
+  playlistSyncMessage?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Playlist {
+  id: string;
+  sourceChannelId: string;
+  externalPlaylistId: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  externalUrl: string;
+  thumbnailUrl?: string | null;
+  itemCount: number;
+  syncedItemCount: number;
+  linkedItemCount: number;
+  isActive: boolean;
+  publishedAt?: string | null;
+  sourcePayload?: Record<string, unknown> | null;
+  createdAt?: string;
+  updatedAt?: string;
+  lastSyncedAt?: string | null;
+}
+
+export interface PlaylistItem {
+  id: string;
+  playlistId: string;
+  contentItemId?: string | null;
+  externalVideoId: string;
+  position: number;
+  title?: string | null;
+  addedAt?: string | null;
+  sourcePayload?: Record<string, unknown> | null;
   createdAt?: string;
   updatedAt?: string;
 }

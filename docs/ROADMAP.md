@@ -1,15 +1,16 @@
-# ORKPOD Archive Roadmap (после Phase 20)
+﻿# ORKPOD Archive Roadmap (после Phase 21)
 
 ## Текущее состояние продукта
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
 2. Брендинг ORKPOD (green ork, icon, hero background) сохранён.
-3. Auth/admin/community/ingestion flows остаются рабочими.
+3. Auth/admin/community/ingestion потоки остаются рабочими.
 4. Live YouTube sync и API-backed ingestion с exact tags сохранены.
 5. SEO / performance / indexing foundation сохранены.
-6. Detail UX (embedded player над описанием + collapsible description) сохранён и визуально усилен.
+6. Detail UX (embedded player над описанием + collapsible description) сохранён.
 7. Cover readiness и bulk publish workflow сохранены.
-8. Comment reputation + trust moderation rules (Phase 19) сохранены.
-9. Phase 20 завершён: выполнен крупный public UI/UX overhaul с discovery/catalog фокусом.
+8. Comment reputation + trust moderation rules (Phase 19) работают.
+9. Phase 20 public UI/UX overhaul сохранён.
+10. Phase 21: выполнена очистка таксономии и добавлен foundation для playlist entity + playlist sync.
 
 ## Статус фаз
 1. Phase 01 — выполнено.
@@ -36,27 +37,19 @@
 22. Phase 17 — выполнено.
 23. Phase 18 — выполнено.
 24. Phase 19 — выполнено.
-25. Phase 20 — выполнено (Pixabay-inspired public UI/UX overhaul).
+25. Phase 20 — выполнено.
+26. Phase 21 — выполнено (taxonomy cleanup + playlist sync foundation).
 
-## Что сделано в Phase 20
-1. Главная страница перестроена как discovery-first поверхность:
-   - усиленный hero с быстрым входом в поиск;
-   - явные category entry points;
-   - структурированные featured/recent блоки;
-   - более современный ритм карточек и секций.
-2. `/streams` переведён в более каталоговый UX:
-   - выраженный верхний каталог-хедер;
-   - фильтры в отдельной панели с clear/reset;
-   - активные фильтры и cleaner result summary;
-   - улучшенная карточная сетка.
-3. `/streams/[slug]` визуально отполирован без смены основной логики:
-   - улучшена связка cover/title/meta/player;
-   - сохранены внешний source-link, community block и related;
-   - улучшен визуальный баланс вокруг description/community/related.
-4. Глобальный shell (header/footer/background) приведён к единому premium/lightweight стилю.
-5. Motion слой усилен через более выразительные reveal-переходы.
+## Что сделано в Phase 21
+1. Таксономия (categories/series/tags) выровнена под реальные повторяющиеся темы импортированного корпуса.
+2. В ingestion mapping добавлены playlist-сигналы (playlist title/id) для более объяснимого и детерминированного auto-mapping.
+3. Введена first-class playlist модель: `Playlist` и `PlaylistItem`.
+4. Добавлен playlist sync foundation на YouTube Data API path (при наличии `YOUTUBE_DATA_API_KEY`).
+5. Добавлена персистенция playlists/playlist_items для Supabase и local fallback.
+6. В source registry добавлена операционная видимость playlist sync telemetry и списка синхронизированных playlists.
+7. Добавлена безопасная очистка legacy demo-записей в local fallback path и SQL-архивация demo-паттернов для Supabase.
 
 ## Следующие roadmap-блоки
-1. Broader cover/media art-direction polish при необходимости (следующий уровень визуальной глубины).
-2. Оставшийся operational polish после наблюдения за live-поведением.
-3. Future refinements на основе реальной usage-аналитики и пользовательской обратной связи.
+1. Дальнейший playlist UX/discovery polish на публичных поверхностях (без ломки текущей операционной модели).
+2. Дополнительная калибровка таксономии по мере роста реального корпуса.
+3. Operational polish по live-наблюдениям (очереди, отчётность, backfill-процедуры).

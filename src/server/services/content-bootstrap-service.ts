@@ -1,15 +1,12 @@
 import "server-only";
 
 import { categories, contentItems, platforms, seriesList } from "@/data";
+import { isLegacyDemoContentItem } from "@/lib/content-record-flags";
 import { assertAdminWriteAccess } from "@/server/auth/admin-gate";
 import { getContentRepository } from "@/server/repositories/content-repository";
 import type { ContentItem, CreateManualContentInput } from "@/types/content";
 
-const DEFAULT_BOOTSTRAP_SLUGS = [
-  "inside-stream-editorial-pipeline",
-  "retro-air-multi-platform-recap",
-  "live-build-nextjs-archive-grid",
-];
+const DEFAULT_BOOTSTRAP_SLUGS: string[] = [];
 
 type BootstrapResult = {
   created: number;
@@ -82,15 +79,20 @@ function mapTemplateToCreateInput(
 }
 
 function getBootstrapTemplates() {
+  const sanitized = contentItems.filter((item) => !isLegacyDemoContentItem(item));
+  if (sanitized.length === 0) {
+    return [] as ContentItem[];
+  }
+
   const mapped = DEFAULT_BOOTSTRAP_SLUGS.map((slug) =>
-    contentItems.find((item) => item.slug === slug),
+    sanitized.find((item) => item.slug === slug),
   ).filter(Boolean) as ContentItem[];
 
   if (mapped.length >= 3) {
     return mapped;
   }
 
-  return contentItems.slice(0, 3);
+  return sanitized.slice(0, 3);
 }
 
 export async function bootstrapInitialPublishedContent(params: {
@@ -149,4 +151,3 @@ export async function bootstrapInitialPublishedContent(params: {
     errors,
   };
 }
-

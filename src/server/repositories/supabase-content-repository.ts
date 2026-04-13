@@ -6,7 +6,9 @@ import { buildCommentAuthorReputation } from "@/lib/comment-reputation";
 import { resolveContentItems, sortItemsByDate } from "@/lib/content";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import {
+  fetchYouTubeChannelPlaylists,
   fetchYouTubeChannelVideos,
+  type NormalizedYouTubePlaylist,
   type NormalizedYouTubeVideo,
 } from "@/server/services/youtube-ingestion-service";
 import type {
@@ -27,6 +29,7 @@ import type {
   ImportRunTrigger,
   ImportStatus,
   ModerationStatus,
+  Playlist,
   ReactionRecord,
   ResolvedSourceChannel,
   SourceChannel,
@@ -91,6 +94,31 @@ type DbSourceChannelRow = {
   last_successful_sync_at: string | null;
   last_error_at: string | null;
   last_error_message: string | null;
+  last_playlist_synced_at: string | null;
+  last_playlist_count: number | null;
+  last_playlist_item_count: number | null;
+  playlist_sync_mode: SourceChannel["playlistSyncMode"];
+  playlist_sync_message: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type DbPlaylistRow = {
+  id: string;
+  source_channel_id: string;
+  external_playlist_id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  external_url: string;
+  thumbnail_url: string | null;
+  item_count: number | null;
+  synced_item_count: number | null;
+  linked_item_count: number | null;
+  is_active: boolean | null;
+  published_at: string | null;
+  source_payload: Record<string, unknown> | null;
+  last_synced_at: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -220,6 +248,20 @@ type ImportSnapshot = {
   primaryUrl?: string;
 };
 
+type PlaylistSignals = {
+  playlistTitles: string[];
+  playlistIds: string[];
+};
+
+type PlaylistSyncPersistenceResult = {
+  mode: SourceChannel["playlistSyncMode"];
+  message: string | null;
+  syncedAt: string;
+  playlistCount: number;
+  playlistItemCount: number;
+  linkedItemCount: number;
+};
+
 const fallbackPalettes: Array<[string, string]> = [
   ["#1D4ED8", "#0F172A"],
   ["#0F766E", "#022C22"],
@@ -232,135 +274,137 @@ const DEFAULT_IMPORTED_STATUS: ContentStatus = "draft";
 
 const categoryKeywordRules: Array<{ slug: string; keywords: string[] }> = [
   {
-    slug: "community",
-    keywords: [
-      "q&a",
-      "qna",
-      "community",
-      "question",
-      "discussion",
-      "chat",
-      "сообщество",
-      "комьюнити",
-      "вопрос",
-      "ответ",
-      "дискуссия",
-      "обсуждение",
-    ],
-  },
-  {
     slug: "practice",
     keywords: [
-      "live build",
-      "tooling",
-      "lab",
-      "tutorial",
-      "how to",
-      "obs",
-      "practice",
-      "guide",
-      "практика",
-      "инструмент",
-      "гайд",
-      "лаборатория",
-      "сборка",
-      "автоматизация",
+      "нарезка",
+      "хайлайт",
+      "эпик",
+      "момент",
+      "highlight",
+      "montage",
+      "shorts",
+      "kletka",
+      "scam line",
+      "cleaning simulator",
+      "dread hunger",
+      "outbound",
+      "boba teashop",
     ],
   },
   {
-    slug: "interview",
+    slug: "community",
     keywords: [
-      "inside stream",
-      "interview",
-      "guest",
-      "conversation",
-      "podcast",
-      "интервью",
-      "гость",
-      "беседа",
-      "разговор",
-      "подкаст",
+      "стрим",
+      "stream",
+      "live",
+      "кооп",
+      "дуэт",
+      "прохождение",
+      "chained wheels",
+      "cooking simulator",
+      "pizza",
+      "heroes of the storm",
+      "tes",
+      "skyrim",
+      "fishing",
+      "goose gone",
     ],
   },
   {
     slug: "analysis",
     keywords: [
-      "retro air",
-      "archive notes",
-      "analysis",
-      "review",
-      "metrics",
-      "аналитика",
-      "анализ",
+      "blizzard",
+      "wow",
+      "warcraft",
+      "diablo",
+      "overwatch",
+      "dragonflight",
+      "shadowlands",
+      "immortal",
+      "blizzcon",
+      "activision",
+      "microsoft",
+      "новости",
       "разбор",
-      "обзор",
-      "метрики",
-      "архив",
-      "итоги",
+      "скандал",
+      "индустрия",
+    ],
+  },
+  {
+    slug: "interview",
+    keywords: [
+      "интервью",
+      "беседа",
+      "подкаст",
+      "разговор",
+      "гость",
+      "interview",
+      "podcast",
+      "conversation",
     ],
   },
 ];
 
 const seriesKeywordRules: Array<{ slug: string; keywords: string[] }> = [
   {
-    slug: "inside-stream",
-    keywords: ["inside stream", "interview", "conversation", "интервью", "беседа"],
-  },
-  {
-    slug: "retro-air",
-    keywords: ["retro air", "retrospective", "review", "ретро", "обзор", "разбор"],
-  },
-  {
     slug: "live-build",
-    keywords: ["live build", "build", "practice", "сборка", "практика"],
-  },
-  {
-    slug: "qna-room",
-    keywords: ["q&a", "qna", "question", "answers", "community", "вопрос", "ответ"],
-  },
-  {
-    slug: "archive-notes",
-    keywords: ["archive notes", "archive", "notes", "архив", "заметки"],
+    keywords: ["нарезка", "хайлайт", "эпик", "montage", "highlight", "orkcut"],
   },
   {
     slug: "tooling-lab",
-    keywords: ["tooling", "lab", "tool", "obs", "automation", "инструмент", "автоматизация"],
+    keywords: ["simulator", "horror", "survival", "kletka", "scam line", "dread hunger"],
+  },
+  {
+    slug: "qna-room",
+    keywords: ["стрим", "stream", "live", "кооп", "дуэт", "orkstream"],
+  },
+  {
+    slug: "archive-notes",
+    keywords: ["blizzard", "wow", "diablo", "warcraft", "overwatch", "новости", "разбор"],
+  },
+  {
+    slug: "retro-air",
+    keywords: ["blizzard", "индустрия", "скандал", "экспертиза", "обзор"],
+  },
+  {
+    slug: "inside-stream",
+    keywords: ["интервью", "подкаст", "беседа", "гость", "conversation"],
   },
 ];
 
 const tagKeywordRules: Record<string, string[]> = {
-  nextjs: ["next.js", "nextjs", "app router", "next"],
-  streaming: ["stream", "streaming", "broadcast", "стрим", "эфир"],
-  editorial: ["editorial", "editing", "editor", "редактура", "монтаж"],
-  community: ["community", "q&a", "qna", "комьюнити", "сообщество"],
-  ux: ["ux", "ui", "interface", "интерфейс"],
-  analytics: ["analytics", "metrics", "retention", "аналитика", "метрики"],
-  obs: ["obs", "open broadcaster", "обс"],
-  audio: ["audio", "sound", "microphone", "аудио", "звук", "микрофон"],
-  automation: ["automation", "pipeline", "workflow", "автоматизация", "pipeline"],
-  typescript: ["typescript", "type script", "ts"],
-  archive: ["archive", "catalog", "library", "архив", "каталог"],
-  process: ["process", "workflow", "flow", "процесс", "поток"],
+  nextjs: ["tes", "skyrim", "dovakin", "elder scrolls", "скайрим"],
+  streaming: ["stream", "стрим", "live", "эфир", "twitch"],
+  editorial: ["нарезка", "highlight", "хайлайт", "montage", "эпик"],
+  community: ["кооп", "co-op", "coop", "дуэт", "команда"],
+  ux: ["horror", "хоррор", "страш", "ужас", "twisted"],
+  analytics: ["новости", "разбор", "скандал", "индустрия", "экспертиза"],
+  obs: ["blizzard", "blizzcon", "hots"],
+  audio: ["rpg", "adventure", "quest", "сюжет"],
+  automation: ["simulator", "симулятор", "sim", "cooking simulator", "crime simulator"],
+  typescript: ["action", "экшен", "battle", "битва", "fight"],
+  archive: ["wow", "diablo", "warcraft", "overwatch", "dragonflight", "shadowlands"],
+  process: ["обсуждение", "reaction", "реакт", "анонс", "экспертиза"],
 };
 
 const sourceAutomationProfiles: Record<string, SourceAutomationProfile> = {
   orkcut: {
     preferredCategorySlug: "practice",
-    preferredSeriesSlug: "tooling-lab",
-    preferredTagSlugs: ["automation", "process", "obs"],
-    keywordBoosts: ["tooling", "pipeline", "workflow", "автоматизация", "практика"],
+    preferredSeriesSlug: "live-build",
+    preferredTagSlugs: ["editorial", "automation", "ux"],
+    keywordBoosts: ["нарезка", "хайлайт", "эпик", "симулятор", "хоррор"],
   },
   orkstream: {
     preferredCategorySlug: "community",
     preferredSeriesSlug: "qna-room",
-    preferredTagSlugs: ["community", "streaming"],
-    keywordBoosts: ["community", "q&a", "чат", "вопрос"],
+    preferredTagSlugs: ["streaming", "community", "nextjs"],
+    keywordBoosts: ["стрим", "кооп", "tes", "skyrim", "duo"],
   },
   "orkpod-youtube": {
     preferredCategorySlug: "analysis",
     preferredSeriesSlug: "archive-notes",
-    preferredTagSlugs: ["archive", "analytics"],
-    keywordBoosts: ["archive", "review", "метрики", "анализ"],
+    preferredTagSlugs: ["analytics", "obs", "archive", "process"],
+    keywordBoosts: ["blizzard", "wow", "diablo", "новости", "разбор"],
   },
 };
 
@@ -370,6 +414,9 @@ const lowSignalSourceTags = new Set([
   "youtube",
   "stream",
   "shorts",
+  "gaming",
+  "gameplay",
+  "игра",
   "dela",
   "ladda upp",
   "gratis",
@@ -619,10 +666,13 @@ function buildAutoMappingResult(params: {
   defaultCategoryId: string;
   defaultSeriesId: string | null;
   metadataSignals?: MetadataSignals;
+  playlistSignals?: PlaylistSignals | null;
 }) {
   const metadataSignals = params.metadataSignals ?? readMetadataSignals(params.video);
   const sourceProfile = sourceAutomationProfiles[params.source.slug] ?? null;
   const sourceProfileBoostTerms = sourceProfile?.keywordBoosts ?? [];
+  const playlistTitles = params.playlistSignals?.playlistTitles ?? [];
+  const playlistIds = params.playlistSignals?.playlistIds ?? [];
 
   const searchable = [
     params.video.title,
@@ -634,6 +684,8 @@ function buildAutoMappingResult(params: {
     params.source.title,
     params.source.slug,
     ...normalizeSourceTagSignalsForMapping(params.video.sourceTags),
+    ...playlistTitles,
+    ...playlistIds,
     ...sourceProfileBoostTerms,
   ].join(" ");
   const titleOnly = [params.video.title, params.video.sourceCategory ?? ""].join(" ");
@@ -771,13 +823,18 @@ function buildAutoMappingResult(params: {
     ...selectedSeriesSignal.allMatches,
     ...tagCandidateEntries.flatMap((entry) => entry.keywordMatches),
     ...sourceTagSignals,
+    ...playlistTitles,
     ...listKeywordMatches(searchable, sourceProfileBoostTerms),
   ]);
+
+  const playlistSignalStrength =
+    playlistTitles.length >= 2 ? 2 : playlistTitles.length === 1 ? 1 : 0;
 
   const score =
     selectedCategorySignal.score +
     selectedSeriesSignal.score +
     (resolvedTagIds.length >= 3 ? 4 : resolvedTagIds.length > 0 ? 2 : 0) +
+    playlistSignalStrength +
     (sourceTagSignals.length >= 2 ? 1 : 0) +
     (exactSourceTags ? 3 : 0) +
     (metadataSignals.overallReliability === "high"
@@ -789,7 +846,8 @@ function buildAutoMappingResult(params: {
   const hasStrongSemanticSignals =
     selectedCategorySignal.allMatches.length > 0 ||
     selectedSeriesSignal.allMatches.length > 0 ||
-    tagCandidateEntries.some((entry) => entry.totalScore >= 4);
+    tagCandidateEntries.some((entry) => entry.totalScore >= 4) ||
+    playlistTitles.length > 0;
 
   let confidence: MappingConfidence = score >= 12 ? "high" : score >= 7 ? "medium" : "low";
   if (metadataSignals.overallReliability === "low" && confidence === "high") {
@@ -807,7 +865,7 @@ function buildAutoMappingResult(params: {
     (selectedSeriesSignal.allMatches.length === 0 &&
       !sourceProfile?.preferredSeriesSlug &&
       Boolean(selectedSeries)) ||
-    (resolvedTagIds.length === 0 && !exactSourceTags);
+    (resolvedTagIds.length === 0 && !exactSourceTags && playlistTitles.length === 0);
   const needsReview =
     confidence !== "high" ||
     fallbackUsed ||
@@ -833,6 +891,7 @@ function buildAutoMappingResult(params: {
       `mapping_score:${score}`,
       `mapping_confidence:${confidence}`,
       `source_tags_exact:${exactSourceTags ? "true" : "false"}`,
+      `playlist_signals:${playlistTitles.length}`,
       `semantic_signals:${hasStrongSemanticSignals ? "strong" : "weak"}`,
       sourceProfile ? `source_profile:${params.source.slug}` : "source_profile:none",
       `metadata_reliability:${metadataSignals.overallReliability}`,
@@ -1127,6 +1186,163 @@ function buildSourcePayload(params: {
   };
 }
 
+function buildPlaylistSignalsByVideoId(playlists: NormalizedYouTubePlaylist[]) {
+  const signalsByVideoId = new Map<string, PlaylistSignals>();
+
+  for (const playlist of playlists) {
+    for (const item of playlist.items) {
+      const key = item.externalVideoId.trim();
+      if (!key) {
+        continue;
+      }
+
+      const existing = signalsByVideoId.get(key) ?? {
+        playlistTitles: [],
+        playlistIds: [],
+      };
+
+      existing.playlistTitles = deduplicateCaseInsensitive([
+        ...existing.playlistTitles,
+        playlist.title,
+      ]);
+      existing.playlistIds = deduplicateCaseInsensitive([
+        ...existing.playlistIds,
+        playlist.externalPlaylistId,
+      ]);
+      signalsByVideoId.set(key, existing);
+    }
+  }
+
+  return signalsByVideoId;
+}
+
+async function persistPlaylistsToSupabase(params: {
+  client: ReturnType<typeof ensureClient>;
+  source: SourceChannel;
+  playlists: NormalizedYouTubePlaylist[];
+  linkedContentItemIdByVideoId: Map<string, string>;
+  syncedAt: string;
+  syncMode: SourceChannel["playlistSyncMode"];
+  syncMessage: string | null;
+}) {
+  if (params.syncMode !== "api_primary") {
+    return {
+      mode: params.syncMode ?? "error",
+      message: params.syncMessage,
+      syncedAt: params.syncedAt,
+      playlistCount: 0,
+      playlistItemCount: 0,
+      linkedItemCount: 0,
+    } satisfies PlaylistSyncPersistenceResult;
+  }
+
+  const externalIds = params.playlists.map((entry) => entry.externalPlaylistId);
+  if (externalIds.length > 0) {
+    const deactivateMissing = await params.client
+      .from("playlists")
+      .update({
+        is_active: false,
+        last_synced_at: params.syncedAt,
+        updated_at: params.syncedAt,
+      })
+      .eq("source_channel_id", params.source.id)
+      .not("external_playlist_id", "in", `(${externalIds.map((id) => `"${id}"`).join(",")})`);
+    if (deactivateMissing.error) {
+      throw deactivateMissing.error;
+    }
+  } else {
+    const deactivateAll = await params.client
+      .from("playlists")
+      .update({
+        is_active: false,
+        last_synced_at: params.syncedAt,
+        updated_at: params.syncedAt,
+      })
+      .eq("source_channel_id", params.source.id);
+    if (deactivateAll.error) {
+      throw deactivateAll.error;
+    }
+  }
+
+  let totalPlaylistItems = 0;
+  let linkedItemCount = 0;
+
+  for (const playlist of params.playlists) {
+    const upsertPlaylist = await params.client
+      .from("playlists")
+      .upsert(
+        {
+          source_channel_id: params.source.id,
+          external_playlist_id: playlist.externalPlaylistId,
+          slug: playlist.slug,
+          title: playlist.title,
+          description: playlist.description || null,
+          external_url: playlist.externalUrl,
+          thumbnail_url: playlist.thumbnailUrl,
+          item_count: playlist.itemCount,
+          synced_item_count: playlist.items.length,
+          linked_item_count: playlist.items.filter((entry) =>
+            params.linkedContentItemIdByVideoId.has(entry.externalVideoId),
+          ).length,
+          is_active: true,
+          published_at: playlist.publishedAt,
+          source_payload: playlist.sourcePayload,
+          last_synced_at: params.syncedAt,
+          updated_at: params.syncedAt,
+        },
+        { onConflict: "external_playlist_id" },
+      )
+      .select("id")
+      .single();
+    if (upsertPlaylist.error) {
+      throw upsertPlaylist.error;
+    }
+
+    const playlistId = upsertPlaylist.data.id as string;
+    const deleteItems = await params.client.from("playlist_items").delete().eq("playlist_id", playlistId);
+    if (deleteItems.error) {
+      throw deleteItems.error;
+    }
+
+    if (playlist.items.length > 0) {
+      const rows = playlist.items.map((item) => {
+        const linkedContentItemId = params.linkedContentItemIdByVideoId.get(item.externalVideoId) ?? null;
+        if (linkedContentItemId) {
+          linkedItemCount += 1;
+        }
+        return {
+          playlist_id: playlistId,
+          content_item_id: linkedContentItemId,
+          external_video_id: item.externalVideoId,
+          position: item.position,
+          title: item.title,
+          added_at: item.addedAt,
+          source_payload: item.sourcePayload,
+          created_at: params.syncedAt,
+          updated_at: params.syncedAt,
+        };
+      });
+
+      totalPlaylistItems += rows.length;
+      const insertItems = await params.client
+        .from("playlist_items")
+        .insert(rows);
+      if (insertItems.error) {
+        throw insertItems.error;
+      }
+    }
+  }
+
+  return {
+    mode: "api_primary",
+    message: params.syncMessage,
+    syncedAt: params.syncedAt,
+    playlistCount: params.playlists.length,
+    playlistItemCount: totalPlaylistItems,
+    linkedItemCount,
+  } satisfies PlaylistSyncPersistenceResult;
+}
+
 function summarizeRunStatus(params: Pick<
   ImportRun,
   "createdCount" | "updatedCount" | "skippedCount" | "failedCount"
@@ -1339,6 +1555,28 @@ function rowToContentItem(
     })),
     sourcePayload: row.source_payload,
     featured: row.featured,
+  };
+}
+
+function rowToPlaylist(row: DbPlaylistRow): Playlist {
+  return {
+    id: row.id,
+    sourceChannelId: row.source_channel_id,
+    externalPlaylistId: row.external_playlist_id,
+    slug: row.slug,
+    title: row.title,
+    description: row.description,
+    externalUrl: row.external_url,
+    thumbnailUrl: row.thumbnail_url,
+    itemCount: row.item_count ?? 0,
+    syncedItemCount: row.synced_item_count ?? 0,
+    linkedItemCount: row.linked_item_count ?? 0,
+    isActive: row.is_active ?? true,
+    publishedAt: row.published_at,
+    sourcePayload: row.source_payload,
+    createdAt: row.created_at ?? undefined,
+    updatedAt: row.updated_at ?? undefined,
+    lastSyncedAt: row.last_synced_at,
   };
 }
 
@@ -2136,7 +2374,7 @@ export class SupabaseContentRepository implements ContentRepository {
     const result = await client
       .from("source_channels")
       .select(
-        "id, slug, title, platform_id, external_channel_id, source_url, is_active, notes, last_synced_at, last_successful_sync_at, last_error_at, last_error_message, created_at, updated_at",
+        "id, slug, title, platform_id, external_channel_id, source_url, is_active, notes, last_synced_at, last_successful_sync_at, last_error_at, last_error_message, last_playlist_synced_at, last_playlist_count, last_playlist_item_count, playlist_sync_mode, playlist_sync_message, created_at, updated_at",
       )
       .order("title");
 
@@ -2161,6 +2399,11 @@ export class SupabaseContentRepository implements ContentRepository {
           lastSuccessfulSyncAt: row.last_successful_sync_at,
           lastErrorAt: row.last_error_at,
           lastErrorMessage: row.last_error_message,
+          lastPlaylistSyncedAt: row.last_playlist_synced_at,
+          lastPlaylistCount: row.last_playlist_count,
+          lastPlaylistItemCount: row.last_playlist_item_count,
+          playlistSyncMode: row.playlist_sync_mode,
+          playlistSyncMessage: row.playlist_sync_message,
           createdAt: row.created_at ?? undefined,
           updatedAt: row.updated_at ?? undefined,
         };
@@ -2171,6 +2414,32 @@ export class SupabaseContentRepository implements ContentRepository {
         };
       })
       .filter(isResolvedSourceChannel);
+  }
+
+  async listPlaylists(options?: { sourceChannelId?: string; limit?: number }) {
+    const client = ensureClient();
+    const normalizedLimit = Number.isFinite(options?.limit ?? Number.NaN)
+      ? Math.max(1, Math.min(250, options?.limit ?? 50))
+      : 50;
+
+    let query = client
+      .from("playlists")
+      .select(
+        "id, source_channel_id, external_playlist_id, slug, title, description, external_url, thumbnail_url, item_count, synced_item_count, linked_item_count, is_active, published_at, source_payload, last_synced_at, created_at, updated_at",
+      )
+      .order("last_synced_at", { ascending: false })
+      .limit(normalizedLimit);
+
+    if (options?.sourceChannelId) {
+      query = query.eq("source_channel_id", options.sourceChannelId);
+    }
+
+    const result = await query;
+    if (result.error) {
+      throw result.error;
+    }
+
+    return ((result.data ?? []) as DbPlaylistRow[]).map(rowToPlaylist);
   }
 
   async createSourceChannel(input: CreateSourceChannelInput) {
@@ -2427,6 +2696,12 @@ export class SupabaseContentRepository implements ContentRepository {
       }
       const defaultSeriesId = chooseDefaultImportedSeriesId(taxonomy, defaultCategoryId);
       const { resolved, videos } = await fetchYouTubeChannelVideos(source);
+      const playlistSyncResult = await fetchYouTubeChannelPlaylists(source, {
+        resolved,
+      });
+      const playlistSignalsByVideoId = buildPlaylistSignalsByVideoId(
+        playlistSyncResult.playlists,
+      );
 
       const filteredVideos =
         trigger === "retry_failed_items" &&
@@ -2463,6 +2738,7 @@ export class SupabaseContentRepository implements ContentRepository {
             defaultCategoryId,
             defaultSeriesId,
             metadataSignals,
+            playlistSignals: playlistSignalsByVideoId.get(video.externalSourceId) ?? null,
           });
 
           const existing = existingByExternalId.get(video.externalSourceId) ?? null;
@@ -2883,6 +3159,45 @@ export class SupabaseContentRepository implements ContentRepository {
         }
       }
 
+      const linkedContentItemIdByVideoId = new Map<string, string>();
+      for (const item of existingImportedItems) {
+        if (item.externalSourceId) {
+          linkedContentItemIdByVideoId.set(item.externalSourceId, item.id);
+        }
+      }
+      for (const item of itemResults) {
+        if (
+          (item.status === "created" || item.status === "updated" || item.status === "skipped_duplicate") &&
+          item.contentItemId
+        ) {
+          linkedContentItemIdByVideoId.set(item.externalSourceId, item.contentItemId);
+        }
+      }
+      let playlistPersistence: PlaylistSyncPersistenceResult;
+      try {
+        playlistPersistence = await persistPlaylistsToSupabase({
+          client,
+          source,
+          playlists: playlistSyncResult.playlists,
+          linkedContentItemIdByVideoId,
+          syncedAt: now,
+          syncMode: playlistSyncResult.mode,
+          syncMessage: playlistSyncResult.message,
+        });
+      } catch (playlistError) {
+        playlistPersistence = {
+          mode: "error",
+          message:
+            playlistError instanceof Error
+              ? `playlist_sync_failed:${playlistError.message}`
+              : "playlist_sync_failed",
+          syncedAt: now,
+          playlistCount: 0,
+          playlistItemCount: 0,
+          linkedItemCount: 0,
+        };
+      }
+
       const finishedAt = new Date().toISOString();
       run.itemResults = itemResults;
       run.status = summarizeRunStatus(run);
@@ -2905,6 +3220,11 @@ export class SupabaseContentRepository implements ContentRepository {
               : source.lastSuccessfulSyncAt ?? null,
           last_error_at: run.status === "failed" ? finishedAt : null,
           last_error_message: run.status === "failed" ? run.errorMessage ?? "Ingestion failed" : null,
+          last_playlist_synced_at: playlistPersistence.syncedAt,
+          last_playlist_count: playlistPersistence.playlistCount,
+          last_playlist_item_count: playlistPersistence.playlistItemCount,
+          playlist_sync_mode: playlistPersistence.mode,
+          playlist_sync_message: playlistPersistence.message,
           updated_at: finishedAt,
         })
         .eq("id", source.id);

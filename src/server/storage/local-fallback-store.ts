@@ -4,12 +4,15 @@ import path from "node:path";
 import "server-only";
 
 import { contentItems, sourceChannels } from "@/data";
+import { isLegacyDemoContentItem } from "@/lib/content-record-flags";
 import type {
   CommentFeedbackRecord,
   CommentRecord,
   ContentItem,
   ImportRun,
   IngestionLockSnapshot,
+  Playlist,
+  PlaylistItem,
   ReactionRecord,
   SourceChannel,
 } from "@/types/content";
@@ -25,6 +28,8 @@ const localIngestionLocksPath = path.join(dataDirectory, "local-ingestion-locks.
 const localCommentsPath = path.join(dataDirectory, "local-comments.json");
 const localReactionsPath = path.join(dataDirectory, "local-reactions.json");
 const localCommentFeedbackPath = path.join(dataDirectory, "local-comment-feedback.json");
+const localPlaylistsPath = path.join(dataDirectory, "local-playlists.json");
+const localPlaylistItemsPath = path.join(dataDirectory, "local-playlist-items.json");
 
 const emptyIngestionLockSnapshot: IngestionLockSnapshot = {
   globalSyncAllLock: null,
@@ -182,10 +187,36 @@ async function ensureLocalCommentFeedbackStore() {
   }
 }
 
+async function ensureLocalPlaylistsStore() {
+  await ensureDataDirectory();
+
+  try {
+    await readFile(localPlaylistsPath, "utf8");
+    return;
+  } catch {
+    await writeFile(localPlaylistsPath, "[]\n", "utf8");
+  }
+}
+
+async function ensureLocalPlaylistItemsStore() {
+  await ensureDataDirectory();
+
+  try {
+    await readFile(localPlaylistItemsPath, "utf8");
+    return;
+  } catch {
+    await writeFile(localPlaylistItemsPath, "[]\n", "utf8");
+  }
+}
+
 export async function readLocalFallbackContentItems() {
   await ensureLocalContentStore();
   const parsed = (await readJsonArray(localContentStorePath)) as unknown as ContentItem[];
-  return parsed;
+  const sanitized = parsed.filter((item) => !isLegacyDemoContentItem(item));
+  if (sanitized.length !== parsed.length) {
+    await writeFile(localContentStorePath, `${JSON.stringify(sanitized, null, 2)}\n`, "utf8");
+  }
+  return sanitized;
 }
 
 export async function writeLocalFallbackContentItems(items: ContentItem[]) {
@@ -288,4 +319,26 @@ export async function readLocalFallbackCommentFeedback() {
 export async function writeLocalFallbackCommentFeedback(feedback: CommentFeedbackRecord[]) {
   await ensureDataDirectory();
   await writeFile(localCommentFeedbackPath, `${JSON.stringify(feedback, null, 2)}\n`, "utf8");
+}
+
+export async function readLocalFallbackPlaylists() {
+  await ensureLocalPlaylistsStore();
+  const parsed = (await readJsonArray(localPlaylistsPath)) as unknown as Playlist[];
+  return parsed;
+}
+
+export async function writeLocalFallbackPlaylists(playlists: Playlist[]) {
+  await ensureDataDirectory();
+  await writeFile(localPlaylistsPath, `${JSON.stringify(playlists, null, 2)}\n`, "utf8");
+}
+
+export async function readLocalFallbackPlaylistItems() {
+  await ensureLocalPlaylistItemsStore();
+  const parsed = (await readJsonArray(localPlaylistItemsPath)) as unknown as PlaylistItem[];
+  return parsed;
+}
+
+export async function writeLocalFallbackPlaylistItems(items: PlaylistItem[]) {
+  await ensureDataDirectory();
+  await writeFile(localPlaylistItemsPath, `${JSON.stringify(items, null, 2)}\n`, "utf8");
 }

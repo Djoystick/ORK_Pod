@@ -16,6 +16,7 @@ import {
 import type {
   CreateSourceChannelInput,
   ImportRun,
+  Playlist,
   ResolvedContentItem,
   ResolvedSourceChannel,
 } from "@/types/content";
@@ -216,6 +217,7 @@ export async function getAdminSourceRegistryData(host: string) {
     getIngestionLockSnapshot(),
   ]);
   let recentRuns: ImportRun[] = [];
+  let playlists: Playlist[] = [];
   let ingestionRuntimeWarning: string | null = null;
 
   try {
@@ -227,11 +229,20 @@ export async function getAdminSourceRegistryData(host: string) {
     ingestionRuntimeWarning = getIngestionRuntimeUnavailableMessage();
   }
 
+  try {
+    playlists = await repository.listPlaylists({ limit: 40 });
+  } catch (error) {
+    if (!isIngestionRuntimeUnavailableError(error)) {
+      console.warn("[admin-source-service] playlists list is unavailable", error);
+    }
+  }
+
   return {
     gate,
     channels: markChannelsInProgress(channels, lockSnapshot),
     platforms: taxonomy.platforms,
     recentRuns,
+    playlists,
     lockSnapshot,
     ingestionRuntimeWarning,
   };

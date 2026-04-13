@@ -14,6 +14,7 @@ import type { AdminGateContext } from "@/server/auth/admin-gate";
 import type {
   ImportRun,
   IngestionLockSnapshot,
+  Playlist,
   Platform,
   ResolvedSourceChannel,
 } from "@/types/content";
@@ -27,6 +28,7 @@ type SourceRegistryFormProps = {
   gate: AdminGateContext;
   platforms: Platform[];
   channels: ResolvedSourceChannel[];
+  playlists: Playlist[];
   recentRuns: ImportRun[];
   lockSnapshot: IngestionLockSnapshot;
   ingestionRuntimeWarning?: string | null;
@@ -111,6 +113,7 @@ export function SourceRegistryForm({
   gate,
   platforms,
   channels,
+  playlists,
   recentRuns,
   lockSnapshot,
   ingestionRuntimeWarning,
@@ -310,6 +313,7 @@ export function SourceRegistryForm({
               <th className="px-4 py-3">Last success</th>
               <th className="px-4 py-3">Last error</th>
               <th className="px-4 py-3">State</th>
+              <th className="px-4 py-3">Playlist sync</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
@@ -355,6 +359,18 @@ export function SourceRegistryForm({
                     </span>
                   )}
                 </td>
+                <td className="px-4 py-3 text-zinc-300">
+                  <p className="text-xs">
+                    {channel.playlistSyncMode ?? "n/a"} · playlists {channel.lastPlaylistCount ?? 0}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    items {channel.lastPlaylistItemCount ?? 0} ·{" "}
+                    {formatDateTime(channel.lastPlaylistSyncedAt)}
+                  </p>
+                  {channel.playlistSyncMessage ? (
+                    <p className="mt-1 max-w-52 text-xs text-amber-200">{channel.playlistSyncMessage}</p>
+                  ) : null}
+                </td>
                 <td className="px-4 py-3">
                   <div className="grid min-w-36 gap-2">
                     <SourceSyncForm
@@ -375,13 +391,37 @@ export function SourceRegistryForm({
             ))}
             {channels.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-zinc-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-zinc-400">
                   В реестре пока нет каналов.
                 </td>
               </tr>
             ) : null}
           </tbody>
         </table>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        <h3 className="font-display text-2xl text-zinc-100">Синхронизированные playlists</h3>
+        <p className="mt-2 text-sm text-zinc-300">
+          Playlist entity синхронизируется отдельно и связывается с imported video по external video id.
+        </p>
+        <div className="mt-3 space-y-2">
+          {playlists.slice(0, 12).map((playlist) => (
+            <article
+              key={playlist.id}
+              className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"
+            >
+              <p className="font-medium text-zinc-100">{playlist.title}</p>
+              <p className="text-xs text-zinc-400">
+                {playlist.externalPlaylistId} · items {playlist.syncedItemCount} · linked{" "}
+                {playlist.linkedItemCount} · {playlist.isActive ? "active" : "inactive"}
+              </p>
+            </article>
+          ))}
+          {playlists.length === 0 ? (
+            <p className="text-sm text-zinc-400">Плейлисты пока не синхронизированы.</p>
+          ) : null}
+        </div>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">

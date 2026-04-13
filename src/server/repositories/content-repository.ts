@@ -97,6 +97,15 @@ class FallbackContentRepository implements ContentRepository {
     }
   }
 
+  async listPlaylists(options?: Parameters<ContentRepository["listPlaylists"]>[0]) {
+    try {
+      return await this.primary.listPlaylists(options);
+    } catch (error) {
+      console.warn("[repository:fallback] listPlaylists fallback to local store", error);
+      return this.fallback.listPlaylists(options);
+    }
+  }
+
   async createSourceChannel(input: Parameters<ContentRepository["createSourceChannel"]>[0]) {
     try {
       return await this.primary.createSourceChannel(input);
