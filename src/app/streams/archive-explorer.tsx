@@ -1,5 +1,4 @@
 "use client";
-
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { ArchiveCard } from "@/components/archive/archive-card";
@@ -69,33 +68,74 @@ export function ArchiveExplorer({ initialItems, filterOptions }: ArchiveExplorer
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
+  const handleReset = () => {
+    router.replace(pathname, { scroll: false });
+  };
+
+  const activePills: string[] = [];
+  if (filters.search.trim()) activePills.push(`Запрос: ${filters.search.trim()}`);
+  if (filters.category !== "all") activePills.push(`Категория: ${filters.category}`);
+  if (filters.series !== "all") activePills.push(`Серия: ${filters.series}`);
+  if (filters.platform !== "all") activePills.push(`Платформа: ${filters.platform}`);
+  if (filters.sort !== "newest") activePills.push("Сортировка: старые");
+
   return (
-    <section className="space-y-6">
-      <ArchiveControls
-        filters={filters}
-        categoryOptions={filterOptions.categoryOptions}
-        seriesOptions={filterOptions.seriesOptions}
-        platformOptions={filterOptions.platformOptions}
-        onChange={handleChange}
-      />
+    <section className="grid gap-6 xl:grid-cols-[320px_1fr]">
+      <aside className="xl:sticky xl:top-24 xl:h-fit">
+        <ArchiveControls
+          filters={filters}
+          categoryOptions={filterOptions.categoryOptions}
+          seriesOptions={filterOptions.seriesOptions}
+          platformOptions={filterOptions.platformOptions}
+          onChange={handleChange}
+          onReset={handleReset}
+        />
+      </aside>
 
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-zinc-300">
-          Найдено: <span className="font-semibold text-zinc-100">{items.length}</span>
-        </p>
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-zinc-300">
+              Найдено: <span className="font-semibold text-zinc-100">{items.length}</span>
+            </p>
+            {activePills.length > 0 ? (
+              <button
+                type="button"
+                onClick={handleReset}
+                className="rounded-full border border-white/15 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-emerald-300/45 hover:text-emerald-100"
+              >
+                Очистить фильтры
+              </button>
+            ) : null}
+          </div>
+          {activePills.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {activePills.map((pill) => (
+                <span
+                  key={pill}
+                  className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-xs text-emerald-100"
+                >
+                  {pill}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-zinc-500">Показывается полный каталог без ограничений.</p>
+          )}
+        </div>
+
+        {items.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-white/20 bg-white/[0.02] p-10 text-center text-zinc-300">
+            По вашему запросу ничего не найдено. Попробуйте сбросить фильтры или изменить строку поиска.
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+            {items.map((item) => (
+              <ArchiveCard key={item.id} item={item} />
+            ))}
+          </div>
+        )}
       </div>
-
-      {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/20 bg-white/[0.02] p-10 text-center text-zinc-300">
-          По вашему запросу ничего не найдено. Попробуйте сбросить фильтры.
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => (
-            <ArchiveCard key={item.id} item={item} />
-          ))}
-        </div>
-      )}
     </section>
   );
 }

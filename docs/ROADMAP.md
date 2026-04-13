@@ -1,14 +1,15 @@
-# ORKPOD Archive Roadmap (после Phase 19)
+# ORKPOD Archive Roadmap (после Phase 20)
 
 ## Текущее состояние продукта
 1. Публичные маршруты работают: `/`, `/streams`, `/streams/[slug]`, `/about`.
 2. Брендинг ORKPOD (green ork, icon, hero background) сохранён.
-3. Auth/admin/community/ingestion flow остаются рабочими.
-4. YouTube ingestion работает в live-режиме, API-backed путь и exact tags активированы в предыдущих фазах.
-5. SEO / performance / indexing foundation уже внедрены.
-6. Detail UX обновлён: embedded player над описанием + collapsible description.
-7. Cover readiness и admin bulk publish workflow уже внедрены.
-8. Phase 19 завершён: добавлена базовая система репутации комментариев и trust-модерации.
+3. Auth/admin/community/ingestion flows остаются рабочими.
+4. Live YouTube sync и API-backed ingestion с exact tags сохранены.
+5. SEO / performance / indexing foundation сохранены.
+6. Detail UX (embedded player над описанием + collapsible description) сохранён и визуально усилен.
+7. Cover readiness и bulk publish workflow сохранены.
+8. Comment reputation + trust moderation rules (Phase 19) сохранены.
+9. Phase 20 завершён: выполнен крупный public UI/UX overhaul с discovery/catalog фокусом.
 
 ## Статус фаз
 1. Phase 01 — выполнено.
@@ -34,20 +35,28 @@
 21. Phase 16 — выполнено.
 22. Phase 17 — выполнено.
 23. Phase 18 — выполнено.
-24. Phase 19 — выполнено (comment reputation + trust moderation rules).
+24. Phase 19 — выполнено.
+25. Phase 20 — выполнено (Pixabay-inspired public UI/UX overhaul).
 
-## Что сделано в Phase 19
-1. Добавлена модель `+ / -` feedback для комментариев с защитой от дубликатов голосования и toggle/update поведением.
-2. Введён коэффициент репутации автора комментариев по явной формуле: `(positive + 1) / (negative + 1)`.
-3. Интегрированы trust-правила модерации новых комментариев:
-   - коэффициент `> 1` -> автопубликация;
-   - коэффициент `< 1` -> отправка на модерацию;
-   - коэффициент `= 1` (новый/нейтральный профиль) -> безопасный pending.
-4. На публичной странице добавлены `+ / -` действия для комментариев и видимый баланс голосов.
-5. В `/admin/moderation` добавлена trust-видимость: коэффициент автора, статистика `+/-`, trust decision и причина модерации.
-6. Добавлена миграция Supabase для `comment_feedback` и trust-полей комментария.
+## Что сделано в Phase 20
+1. Главная страница перестроена как discovery-first поверхность:
+   - усиленный hero с быстрым входом в поиск;
+   - явные category entry points;
+   - структурированные featured/recent блоки;
+   - более современный ритм карточек и секций.
+2. `/streams` переведён в более каталоговый UX:
+   - выраженный верхний каталог-хедер;
+   - фильтры в отдельной панели с clear/reset;
+   - активные фильтры и cleaner result summary;
+   - улучшенная карточная сетка.
+3. `/streams/[slug]` визуально отполирован без смены основной логики:
+   - улучшена связка cover/title/meta/player;
+   - сохранены внешний source-link, community block и related;
+   - улучшен визуальный баланс вокруг description/community/related.
+4. Глобальный shell (header/footer/background) приведён к единому premium/lightweight стилю.
+5. Motion слой усилен через более выразительные reveal-переходы.
 
 ## Следующие roadmap-блоки
-1. Broader community polish (тонкая калибровка trust-модели, UX очереди модерации, анти-абьюз улучшения).
-2. Further media/cover polish при необходимости.
-3. Большой Pixabay-inspired UI pass отдельной фазой.
+1. Broader cover/media art-direction polish при необходимости (следующий уровень визуальной глубины).
+2. Оставшийся operational polish после наблюдения за live-поведением.
+3. Future refinements на основе реальной usage-аналитики и пользовательской обратной связи.

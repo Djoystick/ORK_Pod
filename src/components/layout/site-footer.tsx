@@ -1,11 +1,18 @@
+import Link from "next/link";
+
 import { Container } from "@/components/shared/container";
 
 export function SiteFooter() {
   return (
     <footer className="mt-20 border-t border-white/10 py-10">
-      <Container className="flex flex-col gap-3 text-sm text-zinc-400 sm:flex-row sm:items-center sm:justify-between">
-        <p>ORKPOD Archive · каталог записей стримов и выпусков.</p>
-        <p>Локальный seed-контент · фаза 1</p>
+      <Container className="grid gap-4 text-sm text-zinc-400 md:grid-cols-[1fr_auto_auto] md:items-center">
+        <p>ORKPOD Archive · каталог стримов и выпусков с современным discovery-подходом.</p>
+        <Link href="/streams" className="text-zinc-300 transition hover:text-emerald-100">
+          Открыть архив
+        </Link>
+        <Link href="/about" className="text-zinc-300 transition hover:text-emerald-100">
+          О проекте
+        </Link>
       </Container>
     </footer>
   );

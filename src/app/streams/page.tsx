@@ -4,11 +4,7 @@ import { Suspense } from "react";
 import { ArchiveExplorer } from "@/app/streams/archive-explorer";
 import { Reveal } from "@/components/motion/reveal";
 import { Container } from "@/components/shared/container";
-import {
-  getDefaultSocialImageUrl,
-  pickMetaDescription,
-  toAbsoluteSiteUrl,
-} from "@/lib/seo";
+import { getDefaultSocialImageUrl, pickMetaDescription, toAbsoluteSiteUrl } from "@/lib/seo";
 import { getArchivePageData } from "@/server/services/public-content-service";
 
 export const dynamic = "force-dynamic";
@@ -39,9 +35,7 @@ function hasNonDefaultArchiveFilters(params: {
   );
 }
 
-export async function generateMetadata({
-  searchParams,
-}: StreamsPageProps): Promise<Metadata> {
+export async function generateMetadata({ searchParams }: StreamsPageProps): Promise<Metadata> {
   const params = await searchParams;
   const isFilteredView = hasNonDefaultArchiveFilters(params);
   const query = (params.q ?? "").trim();
@@ -116,15 +110,18 @@ export default async function StreamsPage() {
       />
 
       <Reveal>
-        <section className="space-y-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Архив</p>
-          <h1 className="font-display text-4xl leading-tight text-zinc-100 sm:text-5xl">
-            Каталог записей
-          </h1>
-          <p className="max-w-3xl text-zinc-300">
-            Единая лента выпусков Orkpod с быстрым поиском по темам, фильтрами по
-            категориям/сериям/платформам и сортировкой по дате публикации.
-          </p>
+        <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0a1410] p-6 sm:p-8">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(52,211,153,0.2),transparent_45%)]" />
+          <div className="relative space-y-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Архив</p>
+            <h1 className="font-display text-4xl leading-tight text-zinc-100 sm:text-5xl">
+              Каталог записей ORKPOD
+            </h1>
+            <p className="max-w-3xl text-zinc-300">
+              Фокус этой страницы — быстрое открытие нужного материала: фильтруйте по категориям и
+              сериям, переключайте платформы, уточняйте запрос и собирайте собственную ленту просмотра.
+            </p>
+          </div>
         </section>
       </Reveal>
 

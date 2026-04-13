@@ -6,20 +6,20 @@ type DetailDescriptionPanelProps = {
 };
 
 export function DetailDescriptionPanel({ item }: DetailDescriptionPanelProps) {
-  const text = item.sourceType === "imported" ? (item.body?.trim() || item.description) : item.description;
+  const text = item.sourceType === "imported" ? item.body?.trim() || item.description : item.description;
 
   if (!text.trim()) {
     return null;
   }
 
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+    <article className="rounded-3xl border border-white/10 bg-[#0a1410]/85 p-5 sm:p-6">
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
           <div>
             <h2 className="font-display text-2xl text-zinc-100">Описание</h2>
             <p className="mt-1 text-xs text-zinc-400">
-              Нажмите, чтобы развернуть полный текст описания записи.
+              Разверните блок, чтобы прочитать полное описание выпуска.
             </p>
           </div>
           <span className="rounded-full border border-white/20 px-3 py-1 text-xs text-zinc-300 transition group-open:border-emerald-300/45 group-open:text-emerald-100">

@@ -138,7 +138,7 @@ export function DetailMediaPlayer({ item, requestHost }: DetailMediaPlayerProps)
   const embed = resolveEmbedPayload(item, requestHost);
 
   return (
-    <article className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-4 sm:p-5">
+    <article className="space-y-3 rounded-3xl border border-white/10 bg-[#0a1410]/90 p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-display text-2xl text-zinc-100">Видео / запись</h2>
         <span className="rounded-full border border-white/20 px-2.5 py-1 text-xs uppercase tracking-[0.12em] text-zinc-300">

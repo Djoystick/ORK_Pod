@@ -1,12 +1,12 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { signOutAction } from "@/app/auth/actions";
-import { cn } from "@/lib/cn";
 import { Container } from "@/components/shared/container";
+import { cn } from "@/lib/cn";
 
 const navigationItems = [
   { href: "/", label: "Главная" },
@@ -33,24 +33,22 @@ export function SiteHeader({ authState }: SiteHeaderProps) {
   const signInHref = `/auth/sign-in?next=${encodeURIComponent(currentPath)}`;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050b09]/88 backdrop-blur-xl">
-      <Container className="flex h-18 items-center justify-between gap-6">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050c09]/88 backdrop-blur-xl">
+      <Container className="flex h-20 items-center justify-between gap-5">
         <Link href="/" className="flex items-center gap-3">
-          <div className="relative size-9 overflow-hidden rounded-lg ring-1 ring-emerald-300/35">
+          <div className="relative size-10 overflow-hidden rounded-xl ring-1 ring-emerald-300/35">
             <Image
               src="/branding/icon.jpg"
               alt="ORKPOD icon"
               fill
-              sizes="36px"
+              sizes="40px"
               className="object-cover"
               priority
             />
           </div>
           <div>
-            <p className="font-display text-sm uppercase tracking-[0.22em] text-emerald-100">
-              ORKPOD
-            </p>
-            <p className="text-xs text-zinc-400">Ork Archive</p>
+            <p className="font-display text-sm uppercase tracking-[0.22em] text-emerald-100">ORKPOD</p>
+            <p className="text-xs text-zinc-400">Discovery Archive</p>
           </div>
         </Link>
 

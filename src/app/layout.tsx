@@ -7,7 +7,7 @@ import "./globals.css";
 export const runtime = "nodejs";
 
 const rootDescription =
-  "Современный архив и каталог записей Orkpod: категории, фильтры, серии и страницы выпусков.";
+  "Современный архив и каталог записей ORKPOD: категории, фильтры, серии и детальные страницы выпусков.";
 
 export const metadata: Metadata = {
   metadataBase: getSiteMetadataBase(),

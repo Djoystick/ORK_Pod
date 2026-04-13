@@ -140,9 +140,9 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
       />
 
       <Reveal>
-        <section className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
+        <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#0a1410]/90">
           <div
-            className="relative h-56 border-b border-white/10 sm:h-72"
+            className="relative h-60 border-b border-white/10 sm:h-80"
             style={{
               backgroundImage: `linear-gradient(135deg, ${item.cover.palette[0]}, ${item.cover.palette[1]})`,
             }}
@@ -159,27 +159,55 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
             ) : null}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.25),_rgba(0,0,0,0.35)_70%)]" />
             <div className="absolute inset-x-6 bottom-6 flex flex-wrap gap-2">
-              <span className="rounded-full bg-black/40 px-3 py-1 text-xs text-zinc-100">
+              <span className="rounded-full bg-black/45 px-3 py-1 text-xs text-zinc-100">
                 {item.category.title}
               </span>
-              <span className="rounded-full bg-black/40 px-3 py-1 text-xs text-zinc-100">
+              <span className="rounded-full bg-black/45 px-3 py-1 text-xs text-zinc-100">
                 {item.platform.title}
               </span>
             </div>
           </div>
 
-          <div className="space-y-5 p-6 sm:p-8">
+          <div className="space-y-6 p-6 sm:p-8">
             <Link href="/streams" className="text-sm text-emerald-300 hover:text-emerald-200">
               ← Вернуться в архив
             </Link>
-            <h1 className="font-display text-3xl leading-tight text-zinc-100 sm:text-4xl">
-              {item.title}
-            </h1>
-            <p className="text-sm text-zinc-400">
-              {formatRuDate(item.publishedAt)} ·{" "}
-              {item.durationMinutes > 0 ? `${item.durationMinutes} мин` : "длительность TBD"} ·{" "}
-              {item.series?.title ?? "Без серии"}
-            </p>
+
+            <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-4">
+                <h1 className="font-display text-3xl leading-tight text-zinc-100 sm:text-4xl">{item.title}</h1>
+                <p className="text-sm text-zinc-300">{item.excerpt}</p>
+                <p className="text-sm text-zinc-400">
+                  {formatRuDate(item.publishedAt)} ·{" "}
+                  {item.durationMinutes > 0 ? `${item.durationMinutes} мин` : "Длительность TBD"} ·{" "}
+                  {item.series?.title ?? "Без серии"}
+                </p>
+              </div>
+
+              <aside className="space-y-3 rounded-2xl border border-white/12 bg-white/[0.03] p-4">
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Навигация по выпуску</p>
+                <div className="flex flex-wrap gap-2">
+                  {item.tags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="rounded-full border border-emerald-300/20 bg-emerald-300/[0.07] px-3 py-1 text-xs text-emerald-100"
+                    >
+                      #{tag.label}
+                    </span>
+                  ))}
+                </div>
+                {item.primaryLink ? (
+                  <a
+                    href={item.primaryLink.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-10 items-center rounded-xl border border-white/20 px-4 text-sm text-zinc-100 transition hover:border-emerald-300/45 hover:text-emerald-100"
+                  >
+                    {item.primaryLink.label}
+                  </a>
+                ) : null}
+              </aside>
+            </div>
 
             <DetailMediaPlayer item={item} requestHost={requestHost} />
           </div>
@@ -190,7 +218,7 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
         <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <DetailDescriptionPanel item={item} />
 
-          <aside className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+          <aside className="space-y-3 rounded-3xl border border-white/10 bg-[#0a1410]/85 p-5 sm:p-6">
             <h2 className="font-display text-2xl text-zinc-100">Внешние ссылки</h2>
             <ul className="space-y-2">
               {item.links.map((link) => (
@@ -202,23 +230,11 @@ export default async function StreamDetailPage({ params }: DetailPageProps) {
                     className="flex items-center justify-between rounded-xl border border-white/15 px-3 py-2 text-sm text-zinc-200 transition hover:border-emerald-300/45 hover:text-emerald-50"
                   >
                     <span>{link.label}</span>
-                    <span className="text-xs uppercase tracking-[0.12em] text-zinc-500">
-                      {link.kind}
-                    </span>
+                    <span className="text-xs uppercase tracking-[0.12em] text-zinc-500">{link.kind}</span>
                   </a>
                 </li>
               ))}
             </ul>
-            <div className="flex flex-wrap gap-2 pt-2">
-              {item.tags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className="rounded-full border border-emerald-300/20 px-3 py-1 text-xs text-zinc-300"
-                >
-                  #{tag.label}
-                </span>
-              ))}
-            </div>
           </aside>
         </section>
       </Reveal>

@@ -22,9 +22,9 @@ body {
   font-family: var(--font-sans-stack);
   min-height: 100%;
   background-image:
-    radial-gradient(circle at 15% -5%, rgba(16, 185, 129, 0.18), transparent 35%),
-    radial-gradient(circle at 85% 0%, rgba(52, 211, 153, 0.15), transparent 40%),
-    linear-gradient(180deg, #040a07 0%, #050b08 30%, #070f0b 100%);
+    radial-gradient(circle at 14% -8%, rgba(16, 185, 129, 0.19), transparent 34%),
+    radial-gradient(circle at 86% -4%, rgba(52, 211, 153, 0.14), transparent 40%),
+    linear-gradient(180deg, #040a07 0%, #050b08 28%, #07100c 100%);
 }
 
 .font-display {

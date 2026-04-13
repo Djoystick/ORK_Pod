@@ -2,14 +2,10 @@ import type { Metadata } from "next";
 
 import { Reveal } from "@/components/motion/reveal";
 import { Container } from "@/components/shared/container";
-import {
-  getDefaultSocialImageUrl,
-  pickMetaDescription,
-  toAbsoluteSiteUrl,
-} from "@/lib/seo";
+import { getDefaultSocialImageUrl, pickMetaDescription, toAbsoluteSiteUrl } from "@/lib/seo";
 
 const aboutDescription = pickMetaDescription(
-  "Что такое ORKPOD Archive, как устроен каталог и какие принципы заложены в систему архивирования.",
+  "Что такое ORKPOD Archive, как устроен каталог и какие принципы лежат в основе системы архивирования.",
 );
 
 export const metadata: Metadata = {
@@ -58,12 +54,12 @@ const principles = [
     text: "Каждая запись оформляется как полноценная единица каталога с контекстом, метаданными и маршрутами для дальнейшего просмотра.",
   },
   {
-    title: "Поиск и discoverability",
-    text: "Главный сценарий — быстро найти нужный материал по теме, рубрике, платформе и дате, а не листать хронологию вручную.",
+    title: "Discoverability",
+    text: "Ключевая цель — быстро находить нужный выпуск по теме, рубрике, платформе и дате, а не вручную прокручивать хронику.",
   },
   {
-    title: "Готовность к масштабированию",
-    text: "Модель данных нормализована и подходит для дальнейшей миграции в БД или CMS без радикальной переработки UI.",
+    title: "Готовность к росту",
+    text: "Модель данных и UI остаются расширяемыми для масштабирования контента, автоматизации ingestion-процессов и дальнейшего product-polish.",
   },
 ];
 
@@ -76,15 +72,14 @@ export default function AboutPage() {
       />
 
       <Reveal>
-        <section className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-7 sm:p-9">
+        <section className="space-y-4 rounded-[2rem] border border-white/10 bg-[#0a1410]/90 p-7 sm:p-9">
           <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">О проекте</p>
           <h1 className="font-display text-4xl leading-tight text-zinc-100 sm:text-5xl">
-            ORKPOD Archive — каталог записей, собранный для удобного изучения
+            ORKPOD Archive — каталог записей для удобного исследования контента
           </h1>
           <p className="max-w-3xl text-zinc-300">
-            Этот сайт пересобирает контентную идею Orkpod в современную систему
-            архивирования: категории, серии, детальные страницы и внятная навигация по
-            материалам.
+            Проект собирает материалы ORKPOD в современный discovery-каталог: категории, серии,
+            детальные страницы и ясная навигация по выпускам.
           </p>
         </section>
       </Reveal>
